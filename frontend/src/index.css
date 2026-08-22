@@ -1,0 +1,140 @@
+:root {
+  --bg: #f5f2f3;
+  --surface: #f5f2f3;
+  --text: #021f94;
+  --muted: #797585;
+  --accent: #021f94;
+  --error: #c10822;
+  --border: #8e8a9c;
+  --font: "Google Sans Flex", system-ui, sans-serif;
+  --font-display: serif;
+}
+
+body {
+  margin: 0;
+  padding: 2rem;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+}
+
+h1 {
+  font-weight: 500;
+  margin: 0 0 1.5rem;
+  font-family: var(--font-display);
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.title {
+  color: var(--text);
+  text-decoration: none;
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.title:hover {
+  text-decoration: underline;
+}
+
+.person {
+  color: var(--muted);
+  font-size: 0.85rem;
+  display: block;
+}
+
+.form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 1rem;
+}
+
+.input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.input:first-child {
+  flex: 1;
+}
+
+.button {
+  background: var(--accent);
+  color: var(--surface);
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.error {
+  color: var(--error);
+}
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 36px 10px 12px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  position: relative;
+}
+
+.x {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--error);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.chip {
+  background: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  color: var(--bg);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.thumb-empty {
+  background: var(--muted);
+}
