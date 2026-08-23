@@ -43,6 +43,7 @@ function App() {
     await fetch(`${API}/api/items/${id}`, { method: "DELETE" });
     setItems(items.filter((item) => item.id !== id));
   }
+  
   return (
     <div className="page">
       <h1>Gift Logger</h1>

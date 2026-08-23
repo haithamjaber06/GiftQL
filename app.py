@@ -1,5 +1,5 @@
 #Imports
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 import sqlite3
 import httpx
 from bs4 import BeautifulSoup
@@ -32,18 +32,19 @@ with db() as conn:
             title TEXT,
             person TEXT,
             img_url TEXT,
-            norm_url TEXT
+            norm_url TEXT,
+            status TEXT
         )
     """)
 
 #Migration
 with db() as conn:
     cols = [r["name"] for r in conn.execute("PRAGMA table_info(items)")]
-    if "norm_url" not in cols:
-        conn.execute("ALTER TABLE items ADD COLUMN norm_url TEXT")
-        for row in conn.execute("SELECT id, url FROM items").fetchall():
-            conn.execute("UPDATE items SET norm_url = ? WHERE id = ?",
-                         (normalize(row["url"]), row["id"]))
+    if "status" not in cols:
+        conn.execute("ALTER TABLE items ADD COLUMN status TEXT")
+        for row in conn.execute("SELECT id FROM items").fetchall():
+            conn.execute("UPDATE items SET status = ? WHERE id = ?",
+                         ("Done", row["id"]))
 
 #Unique Index
 with db() as conn:
@@ -63,6 +64,7 @@ def fetch_meta(url):
             title = title_tag.get("content")
         elif soup.title:
             title = soup.title.string
+        
         image_tag = soup.find("meta", property="og:image")
         if image_tag:
             img = image_tag.get("content")
@@ -99,26 +101,35 @@ def home(person: str = ""):
             rows = conn.execute("SELECT * FROM items ORDER BY id DESC").fetchall()
         return [dict(row) for row in rows]
 #Post New Item
+def enrich(url, item_id):
+    title, img_url = fetch_meta(url)
+    status = "Failed" if img_url is None and title is None else "Done"
+    with db() as conn:
+        conn.execute(
+            "UPDATE items SET title = ?, img_url = ?, status = ? WHERE id = ?", 
+                    (title, img_url, status, item_id)
+        )
 @app.post("/api/items")
-def create_item(new: NewItem):
+def create_item(new: NewItem, back_ground: BackgroundTasks):
     norm = normalize(new.url)
-    title, img_url = fetch_meta(new.url)
     try:
         with db() as conn:
             cursor = conn.execute(
-                "INSERT INTO items (url, title, person, img_url, norm_url) VALUES(?, ?, ?, ?, ?)", 
-                        (new.url, title, new.person, img_url, norm)
+                "INSERT INTO items (url, person, norm_url, status) VALUES(?, ?, ?, ?)",
+                    (new.url, new.person, norm, "Pending")
             )
             item_id = cursor.lastrowid
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=409, detail="Already Saved For This Person")
+    back_ground.add_task(enrich, new.url, item_id)
     return {
+        "title": None,
+        "img_url": None,
         "id": item_id,
         "url": new.url,
-        "title": title,
         "person": new.person,
-        "img_url": img_url,
-        "norm_url": norm
+        "norm_url": norm,
+        "status": "Pending"
     }
 #Delete Item
 @app.delete("/api/items/{item_id}")
