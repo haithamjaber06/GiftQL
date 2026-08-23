@@ -10,11 +10,22 @@ function App() {
   const [filter, setFilter] = useState("");
   const people = ["Mom", "Dad", "Gf", "Big Sis", "Friend", "Teacher"];
   const shown = filter ? items.filter((item) => item.person === filter) : items;
+
+  async function refresh() {
+    const r = await fetch(`${API}/api/items`);
+    setItems(await r.json());
+  }
+
   useEffect(() => {
-    fetch(`${API}/api/items`)
-      .then((r) => r.json())
-      .then((data) => setItems(data));
+    refresh();
   }, []);
+
+  useEffect(() => {
+    const pending = items.some((i) => i.status === "Pending");
+    if (!pending) return;
+    const id = setInterval(refresh, 2000);
+    return () => clearInterval(id);
+  }, [items]);
 
   async function addItem(event) {
     event.preventDefault();
@@ -34,15 +45,16 @@ function App() {
     }
     const created = await response.json();
 
-    setItems([created, ...items]);
+    setItems((prev) => [created, ...prev]);
     setUrl("");
     setError("");
   }
 
   async function removeItem(id) {
     await fetch(`${API}/api/items/${id}`, { method: "DELETE" });
-    setItems(items.filter((item) => item.id !== id));
+    setItems((prev) => prev.filter((item) => item.id !== id));
   }
+
   return (
     <div className="page">
       <h1>Gift Logger</h1>
@@ -70,11 +82,18 @@ function App() {
       </form>
       {error && <p className="error">{error}</p>}
       <div className="filters">
-        <button className="chip" onClick={() => setFilter("")}>
+        <button
+          className={filter === "" ? "chip chip-on" : "chip"}
+          onClick={() => setFilter("")}
+        >
           All
         </button>
         {people.map((name) => (
-          <button key={name} className="chip" onClick={() => setFilter(name)}>
+          <button
+            key={name}
+            className={filter === name ? "chip chip-on" : "chip"}
+            onClick={() => setFilter(name)}
+          >
             {name}
           </button>
         ))}
@@ -92,6 +111,8 @@ function App() {
                 {item.title || item.url}
               </a>
               <span className="person">{item.person || "Nobody Yet"}</span>
+              {item.status === "Pending" && <div className="pending">Pending!</div>}
+              {item.status === "Failed"  && <div className="failed">Failed</div>}
             </div>
             <button className="x" onClick={() => removeItem(item.id)}>
               X
