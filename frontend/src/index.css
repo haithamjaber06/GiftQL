@@ -1,6 +1,6 @@
 :root {
-  --bg: #f5f2f3;
-  --surface: #f5f2f3;
+  --bg: #efeaec;
+  --surface: #ffffff;
   --text: #021f94;
   --muted: #797585;
   --accent: #021f94;
@@ -24,31 +24,12 @@ h1 {
   font-family: var(--font-display);
 }
 
-.list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.page {
+  max-width: 900px;
+  margin: 0 auto;
 }
 
-.title {
-  color: var(--text);
-  text-decoration: none;
-  display: block;
-  overflow-wrap: anywhere;
-}
-
-.title:hover {
-  text-decoration: underline;
-}
-
-.person {
-  color: var(--muted);
-  font-size: 0.85rem;
-  display: block;
-}
+/* ---------- form ---------- */
 
 .form {
   display: flex;
@@ -82,9 +63,41 @@ h1 {
 .error {
   color: var(--error);
 }
-.page {
-  max-width: 900px;
-  margin: 0 auto;
+
+/* ---------- filters ---------- */
+
+.filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.chip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chip-on {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: var(--accent);
+}
+
+/* ---------- list ---------- */
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .item {
@@ -96,6 +109,36 @@ h1 {
   gap: 12px;
   align-items: flex-start;
   position: relative;
+}
+
+.thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.thumb-empty {
+  background: var(--muted);
+}
+
+.title {
+  color: var(--text);
+  text-decoration: none;
+  display: block;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.title:hover {
+  text-decoration: underline;
+}
+
+.person {
+  color: var(--muted);
+  font-size: 0.85rem;
+  display: block;
 }
 
 .x {
@@ -110,31 +153,42 @@ h1 {
   padding: 0 4px;
 }
 
-.filters {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-}
+/* ---------- status badges ---------- */
 
-.chip {
-  background: var(--accent);
-  border: 1px solid var(--border);
+.pending,
+.failed {
+  display: inline-block;
+  padding: 2px 8px;
   border-radius: 999px;
-  padding: 4px 12px;
-  color: var(--bg);
-  font-size: 0.85rem;
-  cursor: pointer;
+  font-size: 0.75rem;
+  margin-top: 4px;
 }
 
-.thumb {
-  width: 56px;
-  height: 56px;
-  object-fit: cover;
-  border-radius: 6px;
-  flex-shrink: 0;
-}
-
-.thumb-empty {
+.pending {
   background: var(--muted);
+  color: var(--surface);
+}
+
+.failed {
+  background: var(--error);
+  color: var(--surface);
+}
+
+/* ---------- interaction ---------- */
+
+.button,
+.chip,
+.x {
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.button:hover,
+.chip:hover,
+.x:hover {
+  opacity: 0.85;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
