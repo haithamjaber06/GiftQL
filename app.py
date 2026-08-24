@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 import sqlite3
 import httpx
 from bs4 import BeautifulSoup
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
 #The database initializing
@@ -33,11 +33,14 @@ with db() as conn:
             person TEXT,
             img_url TEXT,
             norm_url TEXT,
-            status TEXT
+            status TEXT,
+            price DECIMAL,
+            occasion TEXT
         )
     """)
 
-#Migration
+#Migrations
+#Adding "status"
 with db() as conn:
     cols = [r["name"] for r in conn.execute("PRAGMA table_info(items)")]
     if "status" not in cols:
@@ -45,7 +48,17 @@ with db() as conn:
         for row in conn.execute("SELECT id FROM items").fetchall():
             conn.execute("UPDATE items SET status = ? WHERE id = ?",
                          ("Done", row["id"]))
-
+#Adding "price and occasion"
+#price is NULL for past values
+with db() as conn:
+    cols = [r["name"] for r in conn.execute("PRAGMA table_info(items)")]
+    if "price" not in cols:
+        conn.execute("ALTER TABLE items ADD COLUMN price DECIMAL")
+with db() as conn:
+    cols = [r["name"] for r in conn.execute("PRAGMA table_info(items)")]
+    if "occasion" not in cols:
+        conn.execute("ALTER TABLE items ADD COLUMN occasion TEXT")
+    
 #Unique Index
 with db() as conn:
     conn.execute("""CREATE UNIQUE INDEX IF NOT EXISTS uniq_item
@@ -78,7 +91,21 @@ def fetch_meta(url):
 class NewItem(BaseModel):
     url: str
     person: str = ""
+    occasion: str=""
+    price: float | None = None
+    
+    @field_validator("price")
+    @classmethod
+    def round_price(cls, value):
+        return value if value is None else round(value, 2)
+class ItemUpdate(BaseModel):
+    price: float | None = None
+    occasion: str | None = None
 
+    @field_validator("price")
+    @classmethod
+    def round_price(cls, value):
+        return value if value is None else round(value, 2)
 #Page Routing
 app = FastAPI()
 #CORS
@@ -91,14 +118,9 @@ app.add_middleware(
 )
 #Get Items
 @app.get("/api/items")
-def home(person: str = ""):
+def home():
     with db() as conn:
-        if person:
-            rows = conn.execute(
-                "SELECT * FROM items WHERE person = ? ORDER BY id DESC", (person,)
-            ).fetchall()
-        else:
-            rows = conn.execute("SELECT * FROM items ORDER BY id DESC").fetchall()
+        rows = conn.execute("SELECT * FROM items ORDER BY id DESC").fetchall()
         return [dict(row) for row in rows]
 #Post New Item
 def enrich(url, item_id):
@@ -115,8 +137,8 @@ def create_item(new: NewItem, back_ground: BackgroundTasks):
     try:
         with db() as conn:
             cursor = conn.execute(
-                "INSERT INTO items (url, person, norm_url, status) VALUES(?, ?, ?, ?)",
-                    (new.url, new.person, norm, "Pending")
+                "INSERT INTO items (url, person, norm_url, status, occasion, price) VALUES(?, ?, ?, ?, ?, ?)",
+                    (new.url, new.person, norm, "Pending", new.occasion, new.price)
             )
             item_id = cursor.lastrowid
     except sqlite3.IntegrityError:
@@ -129,13 +151,32 @@ def create_item(new: NewItem, back_ground: BackgroundTasks):
         "url": new.url,
         "person": new.person,
         "norm_url": norm,
-        "status": "Pending"
+        "status": "Pending",
+        "occasion": new.occasion,
+        "price": new.price
     }
+#Patch Item
+@app.patch("/api/items/{item_id}")
+def update_item(item_id: int, patch: ItemUpdate):
+    fields = patch.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+
+    sets = ", ".join(f"{k} = ?" for k in fields)
+    values = list(fields.values()) + [item_id]
+
+    with db() as conn:
+        cursor = conn.execute(f"UPDATE items SET {sets} WHERE id = ?", values)
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="No Such Item")
+    return {"id": item_id, **fields}
 #Delete Item
 @app.delete("/api/items/{item_id}")
 def delete(item_id: int):
     with db() as conn:
-        conn.execute("Delete from items where id= (?) ", (item_id,))
+        cursor = conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="No Such Item")
     return {
         "deleted": item_id
     }
