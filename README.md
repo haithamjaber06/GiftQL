@@ -9,9 +9,10 @@ never open. This saves them, and lets me find them again when someone's birthday
 
 ## 👉 Start here: [`BUILD.md`](BUILD.md)
 
-Six small steps. You write every line. Each step ends with something working on screen.
+Steps 0–6 are the basics, 7–12 are the real system. You write every line. Each step ends with
+something working on screen.
 
-You need Python and a text editor. Nothing else.
+To follow it from the start you need Python and a text editor. Nothing else.
 
 ---
 
@@ -20,9 +21,38 @@ You need Python and a text editor. Nothing else.
 | | |
 |---|---|
 | **[`BUILD.md`](BUILD.md)** | **The only file you need right now.** Step-by-step build guide |
-| `app.py` | Your app. Doesn't exist yet — you create it in Step 0 |
-| `gifts.db` | Your data. SQLite makes this for you in Step 2 |
+| `backend/` | The API — FastAPI, split into `config` / `db` / `schemas` / `scraper` / `routes` |
+| `backend/giftlogger.db` | Your data. SQLite makes this for you on first run. Not in git |
+| `frontend/` | The page you actually use — React + Vite |
 | `docs/` | Design notes. **Reference material, not homework** — see below |
+
+`BUILD.md` builds everything as a single `app.py`, which is the right way to learn it. The split
+above came later, once one file stopped being comfortable to read.
+
+## Running it
+
+Two terminals. Backend first:
+
+```powershell
+cd backend
+..\.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+Then the frontend:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+The page is at <http://localhost:5173>, the API at <http://127.0.0.1:8000>, and the auto-generated
+API docs at <http://127.0.0.1:8000/docs>.
+
+⚠️ Run uvicorn **from inside `backend/`**. The imports are absolute (`from app.config import ...`),
+so they only resolve when `backend/` is the working directory.
 
 ## About the `docs/` folder
 
@@ -52,9 +82,9 @@ That's the destination. `BUILD.md` is the road.
 
 Rough order, one at a time, each its own sitting:
 
-7. Make it look decent
-8. Stop it saving duplicates
-9. Move the slow web-fetching into the background
-10. Add price and occasion
-11. Let an LLM fill in the fields automatically
-12. A Telegram bot so you can send links from your phone
+- ✅ 7. Make it look decent
+- ✅ 8. Stop it saving duplicates
+- ✅ 9. Move the slow web-fetching into the background
+- ✅ 10. Add price and occasion
+- 11. Let an LLM fill in the fields automatically
+- 12. A Telegram bot so you can send links from your phone
