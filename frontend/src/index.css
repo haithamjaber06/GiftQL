@@ -46,8 +46,19 @@ h1 {
   font-size: 0.9rem;
 }
 
-.input:first-child {
+.input-url {
   flex: 1;
+  min-width: 0;
+}
+
+.input-occasion {
+  flex: 0 1 200px;
+  min-width: 0;
+}
+
+.input-price {
+  flex: 0 0 90px;
+  min-width: 0;
 }
 
 .button {
@@ -101,15 +112,49 @@ h1 {
 }
 
 .item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(3, minmax(90px, max-content));
+  grid-template-areas: "title person occasion price";
+  gap: 8px;
+  align-items: stretch;
+}
+
+.box {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 10px 36px 10px 12px;
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  position: relative;
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: inherit;
 }
+
+.box-title {
+  grid-area: title;
+  position: relative;
+  padding-right: 32px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  text-align: left;
+}
+
+.title-text {
+  min-width: 0;
+}
+
+.box-sq {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.box-person { grid-area: person; }
+.box-occasion { grid-area: occasion; }
+.box-price { grid-area: price; }
 
 .thumb {
   width: 56px;
@@ -128,29 +173,34 @@ h1 {
   text-decoration: none;
   display: block;
   font-weight: 500;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .title:hover {
   text-decoration: underline;
 }
 
-.person {
-  color: var(--muted);
-  font-size: 0.85rem;
-  display: block;
-}
-
 .x {
   position: absolute;
-  top: 6px;
-  right: 8px;
+  top: 5px;
+  right: 3px;
   background: none;
   border: none;
   color: var(--error);
-  font-size: 1.1rem;
+  font-size: 1rem;
   cursor: pointer;
-  padding: 0 4px;
+  padding: 0 6px;
+}
+
+@media (max-width: 600px) {
+  .item {
+    grid-template-columns: repeat(3, minmax(90px, max-content));
+    grid-template-areas:
+      "title  title    title"
+      "person occasion price";
+  }
 }
 
 /* ---------- status badges ---------- */
