@@ -12,6 +12,8 @@ class NewItem(BaseModel):
     def round_price(cls, value):
         return value if value is None else round(value, 2)
 class ItemUpdate(BaseModel):
+    title: str | None = None
+    kind: str | None = None
     price: float | None = None
     occasion: str | None = None
 
@@ -24,7 +26,7 @@ class ItemParse(BaseModel):
     """What the LLM is allowed to tell us about the saved link."""
     
     kind: str = Field(
-        description="One of: product, store, idea, inspo. A single buyable thing is a 'product'. " 
+        description="One of: Product, Store, Idea, Inspo. A single buyable thing is a 'product'. " 
                     "A shop you'd return to is 'store'"
     )
     

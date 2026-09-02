@@ -63,18 +63,12 @@ def create_item(new: NewItem, back_ground: BackgroundTasks):
             item_id = cursor.lastrowid
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=409, detail="Already Saved For This Person")
+    
     back_ground.add_task(enrich, new.url, item_id)
-    return {
-        "title": None,
-        "img_url": None,
-        "id": item_id,
-        "url": new.url,
-        "person": new.person,
-        "norm_url": norm,
-        "status": "Pending",
-        "occasion": new.occasion,
-        "price": new.price,
-    }
+    
+    with db() as conn:
+        row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+    return(row_to_item(row))
 
 
 # Patch Item
@@ -91,7 +85,8 @@ def update_item(item_id: int, patch: ItemUpdate):
         cursor = conn.execute(f"UPDATE items SET {sets} WHERE id = ?", values)
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="No Such Item")
-    return {"id": item_id, **fields}
+        row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+    return row_to_item(row)
 
 
 # Delete Item

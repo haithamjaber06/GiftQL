@@ -7,9 +7,12 @@ function App() {
   const [url, setUrl] = useState("");
   const [person, setPerson] = useState("");
   const [occasion, setOccasion] = useState("");
-  const [price, setPrice] = useState("")
+  const [price, setPrice] = useState("");
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
+  const [editing, setEditing] = useState(null); // { id, field } or null
+  const [draft, setDraft] = useState("");
+  const KINDS = ["Product", "Store", "Idea", "Inspo"];
   const people = ["Mom", "Dad", "Gf", "Big Sis", "Friend", "Teacher"];
   const shown = filter ? items.filter((item) => item.person === filter) : items;
   const pending = items.some((i) => i.status === "Pending");
@@ -38,7 +41,12 @@ function App() {
     const response = await fetch(`${API}/api/items`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, person, occasion, price: price === "" ? null : price}),
+      body: JSON.stringify({
+        url,
+        person,
+        occasion,
+        price: price === "" ? null : price,
+      }),
     });
     if (!response.ok) {
       const problem = await response.json();
@@ -57,6 +65,66 @@ function App() {
   async function removeItem(id) {
     await fetch(`${API}/api/items/${id}`, { method: "DELETE" });
     setItems((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function startEdit(item, field) {
+    setEditing({ id: item.id, field });
+    setDraft(item[field] ?? "");
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    const { id, field } = editing;
+    const item = items.find((i) => i.id === id);
+    setEditing(null);
+
+    // nothing changed (also how Escape becomes a no-op)
+    if (String(item[field] ?? "") === String(draft)) return;
+
+    const value =
+      field === "price" ? (draft === "" ? null : Number(draft)) : draft;
+
+    const response = await fetch(`${API}/api/items/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: value }),
+    });
+    if (!response.ok) {
+      setError("Couldn't save that");
+      return;
+    }
+    const updated = await response.json();
+    setItems((prev) => prev.map((i) => (i.id === id ? updated : i)));
+  }
+
+  function isEditing(item, field) {
+    return editing && editing.id === item.id && editing.field === field;
+  }
+
+  function editable(item, field, display) {
+    if (!isEditing(item, field)) {
+      return (
+        <span className="editable" onClick={() => startEdit(item, field)}>
+          {display}
+        </span>
+      );
+    }
+    return (
+      <input
+        className="edit"
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={saveEdit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.target.blur();
+          if (e.key === "Escape") {
+            setDraft(item[field] ?? "");
+            e.target.blur();
+          }
+        }}
+      />
+    );
   }
 
   return (
@@ -129,34 +197,88 @@ function App() {
         ))}
       </div>
       <ul className="list">
-        {shown.map((item) => (
-          <li key={item.id} className="item">
-            <div className="box box-title">
-              {item.img_url ? (
-                <img src={item.img_url} alt="" className="thumb" />
-              ) : (
-                <div className="thumb thumb-empty" />
-              )}
-              <div className="title-text">
-                <a href={item.url} className="title">
-                  {item.title || item.url}
-                </a>
-                {item.status === "Pending" && (
-                  <div className="pending">Pending!</div>
+        {shown.map((item) => {
+          const enriched = item.status === "Done";
+          return (
+            <li key={item.id} className={enriched ? "item" : "item item-partial"}>
+              <div className="box box-title">
+                {item.img_url ? (
+                  <img src={item.img_url} alt="" className="thumb" />
+                ) : (
+                  <div className="thumb thumb-empty" />
                 )}
-                {item.status === "Failed" && <div className="failed">Failed</div>}
+                <div className="title-text">
+                  <div className="title">
+                    {editable(item, "title", item.title || item.url)}{" "}
+                    <a href={item.url} title="open link">
+                      &#8599;
+                    </a>
+                  </div>
+                  {enriched && item.description && (
+                    <div className="desc">{item.description}</div>
+                  )}
+                  {item.status === "Pending" && (
+                    <div className="pending">Pending!</div>
+                  )}
+                  {item.status === "Partial" && (
+                    <div className="partial">Partial</div>
+                  )}
+                  {item.status === "Failed" && (
+                    <div className="failed">Failed</div>
+                  )}
+                </div>
+                <button className="x" onClick={() => removeItem(item.id)}>
+                  X
+                </button>
               </div>
-              <button className="x" onClick={() => removeItem(item.id)}>
-                X
-              </button>
-            </div>
+              {enriched && (
+                <div className="box box-kind">
+                  <div className="kind">
+                    {isEditing(item, "kind") ? (
+                      <select
+                        className="edit"
+                        autoFocus
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onBlur={saveEdit}
+                      >
+                        {KINDS.map((k) => (
+                          <option key={k}>{k}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span
+                        className="editable"
+                        onClick={() => startEdit(item, "kind")}
+                      >
+                        {item.kind || "?"}
+                      </span>
+                    )}
+                  </div>
+                  {item.labels?.length > 0 && (
+                    <ul className="labels">
+                      {item.labels.map((label) => (
+                        <li key={label}>{label}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
 
-            <div className="box box-sq box-person">{item.person || "?"}</div>
-            <div className="box box-sq box-occasion">{item.occasion || "?"}</div>
-            <div className="box box-sq box-price">{item.price ?? ""}</div>
-
-          </li>
-        ))}
+              
+              <div className="box box-sq box-person">{item.person || "?"}</div>
+              <div className="box box-sq box-occasion">
+                {item.occasion || "?"}
+              </div>
+              <div className="box box-sq box-price">
+                {editable(item, "price", item.price ?? "\u2014")}
+                {enriched && item.price != null && item.currency
+                  ? ` ${item.currency}`
+                  : ""}
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
