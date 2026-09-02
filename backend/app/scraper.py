@@ -32,8 +32,13 @@ def fetch_meta(url):
         image_tag = soup.find("meta", property="og:image")
         if image_tag:
             img = image_tag.get("content")
-        return title, img
+            
+        for tag in soup(["script", "style", "nav", "footer", "header"]):
+            tag.decompose()
+        text = " ".join(soup.get_text(" ").split())
+        
+        return title, img, text
     
     except Exception as e:
         print("Couldn't Fetch: ", e)
-        return None, None
+        return None, None, ""

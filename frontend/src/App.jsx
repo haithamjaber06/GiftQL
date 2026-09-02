@@ -153,7 +153,7 @@ function App() {
 
             <div className="box box-sq box-person">{item.person || "?"}</div>
             <div className="box box-sq box-occasion">{item.occasion || "?"}</div>
-            <div className="box box-sq box-price">{item.price ?? "?"}</div>
+            <div className="box box-sq box-price">{item.price ?? ""}</div>
 
           </li>
         ))}

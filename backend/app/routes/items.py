@@ -1,4 +1,6 @@
 import sqlite3
+import json
+from app.llm import parse_item
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from app.db import db
 from app.schemas import NewItem, ItemUpdate
@@ -7,23 +9,48 @@ from app.scraper import normalize, fetch_meta
 router = APIRouter(prefix="/api")
 
 
-#Get Items
+# Get Items
+def row_to_item(row):
+    """Turn a database row into what the API promises: labels as a real list."""
+    item = dict(row)
+    item["labels"] = json.loads(item["labels"]) if item["labels"] else []
+    return item
+
+
 @router.get("/items")
 def list_items():
     with db() as conn:
         rows = conn.execute("SELECT * FROM items ORDER BY id DESC").fetchall()
-        return [dict(row) for row in rows]
+        return [row_to_item(row) for row in rows]
 
-    
+
 def enrich(url, item_id):
-    title, img_url = fetch_meta(url)
-    status = "Failed" if img_url is None and title is None else "Done"
+    title, img_url, page_text = fetch_meta(url)
+    parsed = parse_item(url, title, page_text) if page_text else None
+    if parsed is None:
+        status = "Failed" if img_url is None and title is None else "Partial"
+        with db() as conn:
+            conn.execute(
+                "UPDATE items SET title = ?, raw_title = ?, img_url = ?, status = ? WHERE id = ?",
+                (title, title, img_url, status, item_id),
+            )
+        return
     with db() as conn:
         conn.execute(
-            "UPDATE items SET title = ?, img_url = ?, status = ? WHERE id = ?", 
-                    (title, img_url, status, item_id)
-        )        
-#Post New Item
+            "UPDATE items SET title = ?, raw_title = ?, img_url = ?, status = 'Done', kind = ?, description = ?, labels = ?, currency = ?, price = COALESCE(price, ?) WHERE id = ?",
+            (parsed.title or title, 
+            title,
+            img_url, 
+            parsed.kind,
+            parsed.description,
+            json.dumps(parsed.labels),
+            parsed.currency,
+            parsed.price,
+            item_id),
+        )
+
+
+# Post New Item
 @router.post("/items")
 def create_item(new: NewItem, back_ground: BackgroundTasks):
     norm = normalize(new.url)
@@ -31,7 +58,7 @@ def create_item(new: NewItem, back_ground: BackgroundTasks):
         with db() as conn:
             cursor = conn.execute(
                 "INSERT INTO items (url, person, norm_url, status, occasion, price) VALUES(?, ?, ?, ?, ?, ?)",
-                    (new.url, new.person, norm, "Pending", new.occasion, new.price)
+                (new.url, new.person, norm, "Pending", new.occasion, new.price),
             )
             item_id = cursor.lastrowid
     except sqlite3.IntegrityError:
@@ -46,10 +73,11 @@ def create_item(new: NewItem, back_ground: BackgroundTasks):
         "norm_url": norm,
         "status": "Pending",
         "occasion": new.occasion,
-        "price": new.price
+        "price": new.price,
     }
-    
-#Patch Item
+
+
+# Patch Item
 @router.patch("/items/{item_id}")
 def update_item(item_id: int, patch: ItemUpdate):
     fields = patch.model_dump(exclude_unset=True)
@@ -65,14 +93,12 @@ def update_item(item_id: int, patch: ItemUpdate):
             raise HTTPException(status_code=404, detail="No Such Item")
     return {"id": item_id, **fields}
 
-#Delete Item
+
+# Delete Item
 @router.delete("/items/{item_id}")
 def delete(item_id: int):
     with db() as conn:
         cursor = conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="No Such Item")
-    return {
-        "deleted": item_id
-    }
-
+    return {"deleted": item_id}
