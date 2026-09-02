@@ -1,5 +1,6 @@
-import sqlite3
 import json
+import sqlite3
+import traceback
 from app.llm import parse_item
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from app.db import db
@@ -25,29 +26,44 @@ def list_items():
 
 
 def enrich(url, item_id):
-    title, img_url, page_text = fetch_meta(url)
-    parsed = parse_item(url, title, page_text) if page_text else None
-    if parsed is None:
-        status = "Failed" if img_url is None and title is None else "Partial"
+    # Runs in the background, so nothing above catches what it throws.
+    # An unhandled error here would leave the row on "Pending" forever.
+    try:
+        title, img_url, page_text = fetch_meta(url)
+        parsed = parse_item(url, title, page_text) if page_text else None
+
+        if parsed is None:
+            status = "Failed" if img_url is None and title is None else "Partial"
+            with db() as conn:
+                conn.execute(
+                    "UPDATE items SET title = ?, raw_title = ?, img_url = ?, status = ? WHERE id = ?",
+                    (title, title, img_url, status, item_id),
+                )
+            return
+
         with db() as conn:
             conn.execute(
-                "UPDATE items SET title = ?, raw_title = ?, img_url = ?, status = ? WHERE id = ?",
-                (title, title, img_url, status, item_id),
+                "UPDATE items SET title = ?, raw_title = ?, img_url = ?, status = 'Done', kind = ?, description = ?, labels = ?, currency = ?, price = COALESCE(price, ?) WHERE id = ?",
+                (parsed.title or title,
+                 title,
+                 img_url,
+                 parsed.kind,
+                 parsed.description,
+                 json.dumps(parsed.labels),
+                 parsed.currency,
+                 parsed.price,
+                 item_id),
             )
-        return
-    with db() as conn:
-        conn.execute(
-            "UPDATE items SET title = ?, raw_title = ?, img_url = ?, status = 'Done', kind = ?, description = ?, labels = ?, currency = ?, price = COALESCE(price, ?) WHERE id = ?",
-            (parsed.title or title, 
-            title,
-            img_url, 
-            parsed.kind,
-            parsed.description,
-            json.dumps(parsed.labels),
-            parsed.currency,
-            parsed.price,
-            item_id),
-        )
+    except Exception:
+        traceback.print_exc()
+        # Best effort: never leave an item stuck on "Pending".
+        try:
+            with db() as conn:
+                conn.execute(
+                    "UPDATE items SET status = 'Failed' WHERE id = ?", (item_id,)
+                )
+        except Exception:
+            traceback.print_exc()
 
 
 # Post New Item
@@ -82,9 +98,19 @@ def update_item(item_id: int, patch: ItemUpdate):
     values = list(fields.values()) + [item_id]
 
     with db() as conn:
-        cursor = conn.execute(f"UPDATE items SET {sets} WHERE id = ?", values)
-        if cursor.rowcount == 0:
+        old = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+        if old is None:
             raise HTTPException(status_code=404, detail="No Such Item")
+
+        conn.execute(f"UPDATE items SET {sets} WHERE id = ?", values)
+
+        # Every correction is a labelled example: the model said X, the human said Y.
+        for field, new_value in fields.items():
+            conn.execute(
+                "INSERT INTO corrections (item_id, field, llm_value, user_value) VALUES (?, ?, ?, ?)",
+                (item_id, field, str(old[field]), str(new_value)),
+            )
+
         row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
     return row_to_item(row)
 

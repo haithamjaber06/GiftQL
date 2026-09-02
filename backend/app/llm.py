@@ -10,7 +10,8 @@ def get_client():
         _client = instructor.from_provider(LLM_PROVIDER)
     return _client
 
-SYSTEM = """You extract structured gift-idea data from web pages
+SYSTEM = """You extract structured gift-idea data from web pages.
+
 Rules:
 - Fill a field only if the page actually supports it. If you are unsure, use null.
 - Never invent or estimate a price. A price must appear on the page for this specific product.
@@ -21,10 +22,12 @@ Rules:
 def parse_item(url, title, page_text):
     """Ask the model to describe one saved link. Returns an ItemParse, or None."""
     client = get_client()
-    prompt = f"""URL:{url}
-    Page title:{title or "(none found)"}
-    Page text:{page_text[:6000]}
-    """
+    prompt = f"""URL: {url}
+Page title: {title or "(none found)"}
+
+Page text:
+{page_text[:6000]}
+"""
     
     try:
         return client.create(

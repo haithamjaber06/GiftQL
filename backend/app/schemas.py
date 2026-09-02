@@ -1,4 +1,8 @@
+from typing import Literal
+
 from pydantic import BaseModel, field_validator, Field
+
+KIND = Literal["Product", "Store", "Idea", "Inspo"]
 
 #Checks Incoming Data
 class NewItem(BaseModel):
@@ -13,7 +17,7 @@ class NewItem(BaseModel):
         return value if value is None else round(value, 2)
 class ItemUpdate(BaseModel):
     title: str | None = None
-    kind: str | None = None
+    kind: KIND | None = None
     price: float | None = None
     occasion: str | None = None
 
@@ -25,7 +29,7 @@ class ItemUpdate(BaseModel):
 class ItemParse(BaseModel):
     """What the LLM is allowed to tell us about the saved link."""
     
-    kind: str = Field(
+    kind: KIND = Field(
         description="One of: Product, Store, Idea, Inspo. A single buyable thing is a 'product'. " 
                     "A shop you'd return to is 'store'"
     )
