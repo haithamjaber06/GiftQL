@@ -203,14 +203,14 @@ function App() {
             <li key={item.id} className={enriched ? "item" : "item item-partial"}>
               <div className="box box-title">
                 {item.img_url ? (
-                  <img src={item.img_url} alt="" className="thumb" />
+                  <a href={item.url} target="_blank"><img src={item.img_url} alt="" className="thumb" /></a>
                 ) : (
                   <div className="thumb thumb-empty" />
                 )}
                 <div className="title-text">
                   <div className="title">
                     {editable(item, "title", item.title || item.url)}{" "}
-                    <a href={item.url} title="open link">
+                    <a href={item.url} title="open link" target="_blank">
                       &#8599;
                     </a>
                   </div>

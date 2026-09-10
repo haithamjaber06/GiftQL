@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"cd backend && ..\\.venv\\Scripts\\python -m uvicorn app.main:app --reload\" \"cd frontend && npm run dev\""
+  },
+  "devDependencies": { "concurrently": "^9.1.0" }
+}
