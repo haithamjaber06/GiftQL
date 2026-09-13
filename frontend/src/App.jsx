@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 
-const API = "http://127.0.0.1:8000";
+const API = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
+const API_KEY = import.meta.env.VITE_API_KEY ?? "";
+
+function api(path, options = {}) {
+  return fetch(`${API}${path}`, {
+    ...options,
+    headers: { ...options.headers, "X-API-Key": API_KEY },
+  });
+}
 
 function App() {
   const [items, setItems] = useState([]);
@@ -18,7 +26,7 @@ function App() {
   const pending = items.some((i) => i.status === "Pending");
 
   async function refresh() {
-    const r = await fetch(`${API}/api/items`);
+    const r = await api("/api/items");
     setItems(await r.json());
   }
 
@@ -38,7 +46,7 @@ function App() {
       setError("Please Enter a URL");
       return;
     }
-    const response = await fetch(`${API}/api/items`, {
+    const response = await api("/api/items", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -63,7 +71,7 @@ function App() {
   }
 
   async function removeItem(id) {
-    await fetch(`${API}/api/items/${id}`, { method: "DELETE" });
+    await api(`/api/items/${id}`, { method: "DELETE" });
     setItems((prev) => prev.filter((item) => item.id !== id));
   }
 
@@ -84,7 +92,7 @@ function App() {
     const value =
       field === "price" ? (draft === "" ? null : Number(draft)) : draft;
 
-    const response = await fetch(`${API}/api/items/${id}`, {
+    const response = await api(`/api/items/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: value }),

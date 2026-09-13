@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.auth import require_api_key
 from app.config import CORS_ORIGINS
 from app.db import pool, db
 from app.routes import items
@@ -23,7 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(items.router)
+app.include_router(items.router, dependencies=[Depends(require_api_key)])
 
 @app.get("/health")
 def health():
