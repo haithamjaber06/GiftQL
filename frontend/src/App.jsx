@@ -31,8 +31,14 @@ function App() {
   }
 
   useEffect(() => {
+  if (!pending) return;
+  let tries = 0;
+  const id = setInterval(() => {
+    if (++tries > 60) return clearInterval(id);   // give up after 2 minutes
     refresh();
-  }, []);
+  }, 2000);
+  return () => clearInterval(id);
+}, [pending]);
 
   useEffect(() => {
     if (!pending) return;
