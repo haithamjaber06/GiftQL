@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import CORS_ORIGINS
-from app.db import pool
+from app.db import pool, db
 from app.routes import items
 
 @asynccontextmanager
@@ -24,3 +24,9 @@ app.add_middleware(
 )
 
 app.include_router(items.router)
+
+@app.get("/health")
+def health():
+    with db() as conn:
+        conn.execute("SELECT 1")
+    return {"status": "ok"}
