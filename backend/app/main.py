@@ -1,11 +1,20 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import CORS_ORIGINS
-from app.db import init_db
+from app.db import pool
 from app.routes import items
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    pool.open()
+    pool.wait()      # fail loudly at startup if the database is unreachable
+    yield            # ---- app runs here ----
+    pool.close()
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,5 +23,4 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-init_db()
 app.include_router(items.router)

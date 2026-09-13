@@ -1,8 +1,10 @@
-import json
-import sqlite3
 import traceback
-from app.llm import parse_item
+
+import psycopg
+from psycopg.types.json import Json
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+
+from app.llm import parse_item
 from app.db import db
 from app.schemas import NewItem, ItemUpdate
 from app.scraper import normalize, fetch_meta
@@ -10,12 +12,8 @@ from app.scraper import normalize, fetch_meta
 router = APIRouter(prefix="/api")
 
 
-# Get Items
 def row_to_item(row):
-    """Turn a database row into what the API promises: labels as a real list."""
-    item = dict(row)
-    item["labels"] = json.loads(item["labels"]) if item["labels"] else []
-    return item
+    return dict(row)
 
 
 @router.get("/items")
@@ -26,8 +24,6 @@ def list_items():
 
 
 def enrich(url, item_id):
-    # Runs in the background, so nothing above catches what it throws.
-    # An unhandled error here would leave the row on "Pending" forever.
     try:
         title, img_url, page_text = fetch_meta(url)
         parsed = parse_item(url, title, page_text) if page_text else None
@@ -36,90 +32,89 @@ def enrich(url, item_id):
             status = "Failed" if img_url is None and title is None else "Partial"
             with db() as conn:
                 conn.execute(
-                    "UPDATE items SET title = ?, raw_title = ?, img_url = ?, status = ? WHERE id = ?",
+                    "UPDATE items SET title = %s, raw_title = %s, img_url = %s, status = %s WHERE id = %s",
                     (title, title, img_url, status, item_id),
                 )
             return
 
         with db() as conn:
             conn.execute(
-                "UPDATE items SET title = ?, raw_title = ?, img_url = ?, status = 'Done', kind = ?, description = ?, labels = ?, currency = ?, price = COALESCE(price, ?) WHERE id = ?",
+                """UPDATE items
+                   SET title = %s, raw_title = %s, img_url = %s, status = 'Done',
+                       kind = %s, description = %s, labels = %s, currency = %s,
+                       price = COALESCE(price, %s)
+                   WHERE id = %s""",
                 (parsed.title or title,
                  title,
                  img_url,
                  parsed.kind,
                  parsed.description,
-                 json.dumps(parsed.labels),
+                 Json(parsed.labels),
                  parsed.currency,
                  parsed.price,
                  item_id),
             )
     except Exception:
         traceback.print_exc()
-        # Best effort: never leave an item stuck on "Pending".
         try:
             with db() as conn:
                 conn.execute(
-                    "UPDATE items SET status = 'Failed' WHERE id = ?", (item_id,)
+                    "UPDATE items SET status = 'Failed' WHERE id = %s", (item_id,)
                 )
         except Exception:
             traceback.print_exc()
 
 
-# Post New Item
 @router.post("/items")
 def create_item(new: NewItem, back_ground: BackgroundTasks):
     norm = normalize(new.url)
     try:
         with db() as conn:
-            cursor = conn.execute(
-                "INSERT INTO items (url, person, norm_url, status, occasion, price) VALUES(?, ?, ?, ?, ?, ?)",
+            row = conn.execute(
+                """INSERT INTO items (url, person, norm_url, status, occasion, price)
+                   VALUES (%s, %s, %s, %s, %s, %s)
+                   RETURNING *""",
                 (new.url, new.person, norm, "Pending", new.occasion, new.price),
-            )
-            item_id = cursor.lastrowid
-    except sqlite3.IntegrityError:
+            ).fetchone()
+    except psycopg.errors.UniqueViolation:
         raise HTTPException(status_code=409, detail="Already Saved For This Person")
-    
-    back_ground.add_task(enrich, new.url, item_id)
-    
-    with db() as conn:
-        row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
-    return(row_to_item(row))
+
+    back_ground.add_task(enrich, new.url, row["id"])
+    return row_to_item(row)
 
 
-# Patch Item
 @router.patch("/items/{item_id}")
 def update_item(item_id: int, patch: ItemUpdate):
     fields = patch.model_dump(exclude_unset=True)
     if not fields:
         raise HTTPException(status_code=400, detail="Nothing to update")
 
-    sets = ", ".join(f"{k} = ?" for k in fields)
+    sets = ", ".join(f"{key} = %s" for key in fields)
     values = list(fields.values()) + [item_id]
 
     with db() as conn:
-        old = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+        old = conn.execute("SELECT * FROM items WHERE id = %s", (item_id,)).fetchone()
         if old is None:
             raise HTTPException(status_code=404, detail="No Such Item")
 
-        conn.execute(f"UPDATE items SET {sets} WHERE id = ?", values)
+        row = conn.execute(
+            f"UPDATE items SET {sets} WHERE id = %s RETURNING *", values
+        ).fetchone()
 
-        # Every correction is a labelled example: the model said X, the human said Y.
         for field, new_value in fields.items():
             conn.execute(
-                "INSERT INTO corrections (item_id, field, llm_value, user_value) VALUES (?, ?, ?, ?)",
+                """INSERT INTO corrections (item_id, field, llm_value, user_value)
+                   VALUES (%s, %s, %s, %s)""",
                 (item_id, field, str(old[field]), str(new_value)),
             )
 
-        row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
     return row_to_item(row)
 
 
-# Delete Item
 @router.delete("/items/{item_id}")
 def delete(item_id: int):
     with db() as conn:
-        cursor = conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
+        cursor = conn.execute("DELETE FROM items WHERE id = %s", (item_id,))
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="No Such Item")
     return {"deleted": item_id}
