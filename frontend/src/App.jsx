@@ -46,10 +46,8 @@ function App() {
 }, [pending]);
 
   useEffect(() => {
-    if (!pending) return;
-    const id = setInterval(refresh, 2000);
-    return () => clearInterval(id);
-  }, [pending]);
+  refresh();
+}, []);
 
   async function addItem(event) {
     event.preventDefault();
