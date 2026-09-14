@@ -27,7 +27,12 @@ function App() {
 
   async function refresh() {
     const r = await api("/api/items");
+    if (!r.ok) {
+    setError(r.status === 401 ? "Can't reach the server — check the API key" : "Couldn't load items");
+    return;
+    }
     setItems(await r.json());
+    setError("")
   }
 
   useEffect(() => {
