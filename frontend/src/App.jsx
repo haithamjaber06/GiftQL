@@ -1,7 +1,19 @@
 import { useEffect, useState } from "react";
+import styled, { keyframes } from "styled-components";
+import Grid from "./components/Grid";
+import InputBar from "./components/InputBar";
+import FilterBar from "./components/FilterBar";
+import BackgroundIllustration from "./components/BackgroundIllustration";
+import { STATUS } from "./constants/status";
+import { filterItems, occasionOptions } from "./utils/filterItems";
 
 const API = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
 const API_KEY = import.meta.env.VITE_API_KEY ?? "";
+
+// Dev only: ?fixtures=1 swaps the API for local fake items. No requests are sent.
+const fixturesMode =
+  import.meta.env.DEV &&
+  new URLSearchParams(window.location.search).get("fixtures") === "1";
 
 function api(path, options = {}) {
   return fetch(`${API}${path}`, {
@@ -10,295 +22,243 @@ function api(path, options = {}) {
   });
 }
 
+const OFFLINE = "Can't reach the server";
+
 function App() {
   const [items, setItems] = useState([]);
-  const [url, setUrl] = useState("");
-  const [person, setPerson] = useState("");
-  const [occasion, setOccasion] = useState("");
-  const [price, setPrice] = useState("");
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState("");
-  const [editing, setEditing] = useState(null); // { id, field } or null
-  const [draft, setDraft] = useState("");
-  const KINDS = ["Product", "Store", "Idea", "Inspo"];
-  const people = ["Mom", "Dad", "Gf", "Big Sis", "Friend", "Teacher"];
-  const shown = filter ? items.filter((item) => item.person === filter) : items;
-  const pending = items.some((i) => i.status === "Pending");
+  const [personFilter, setPersonFilter] = useState("");
+  const [occasionFilter, setOccasionFilter] = useState("");
+  const [priceFilter, setPriceFilter] = useState("");
+  const pending = items.some((i) => i.status === STATUS.PENDING);
+
+  const occasions = occasionOptions(items);
+  // Selected occasion disappeared (e.g. its last item was deleted): reset to All.
+  if (occasionFilter && !occasions.some((o) => o.key === occasionFilter)) {
+    setOccasionFilter("");
+  }
+  const shown = filterItems(items, {
+    person: personFilter,
+    occasion: occasionFilter,
+    price: priceFilter,
+  });
 
   async function refresh() {
-    const r = await api("/api/items");
-    if (!r.ok) {
-    setError(r.status === 401 ? "Can't reach the server — check the API key" : "Couldn't load items");
-    return;
+    if (fixturesMode) {
+      const { fixtures } = await import("./dev/fixtures.js");
+      setItems(fixtures);
+      return;
     }
-    setItems(await r.json());
-    setError("")
+    try {
+      const r = await api("/api/items");
+      if (!r.ok) {
+        setError(r.status === 401 ? "Can't reach the server — check the API key" : "Couldn't load items");
+        return;
+      }
+      setItems(await r.json());
+      setError("");
+    } catch {
+      setError(OFFLINE);
+    }
   }
 
   useEffect(() => {
-  if (!pending) return;
-  let tries = 0;
-  const id = setInterval(() => {
-    if (++tries > 60) return clearInterval(id);   // give up after 2 minutes
-    refresh();
-  }, 2000);
-  return () => clearInterval(id);
-}, [pending]);
+    if (!pending || fixturesMode) return;   // polling would reset local fixture edits
+    let tries = 0;
+    const id = setInterval(() => {
+      if (++tries > 60) return clearInterval(id);   // give up after 2 minutes
+      refresh();
+    }, 2000);
+    return () => clearInterval(id);
+  }, [pending]);
 
   useEffect(() => {
-  refresh();
-}, []);
+    refresh();
+  }, []);
 
-  async function addItem(event) {
-    event.preventDefault();
+  // Resolves true when the item was saved (the input bar then clears itself).
+  async function addItem({ url, person, occasion, price }) {
     if (!url.trim()) {
-      setError("Please Enter a URL");
-      return;
+      setError("Please enter a URL");
+      return false;
     }
-    const response = await api("/api/items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url,
-        person,
-        occasion,
-        price: price === "" ? null : price,
-      }),
-    });
-    if (!response.ok) {
-      const problem = await response.json();
-      setError(typeof problem.detail === "string" ? problem.detail : "Error!");
-      return;
+    let created;
+    if (fixturesMode) {
+      console.log("[fixtures] create skipped");
+      created = {
+        id: Date.now(), url, norm_url: url, person, occasion,
+        price: price === "" ? null : Number(price), currency: null,
+        title: null, raw_title: null, description: null, img_url: null,
+        status: STATUS.PENDING, kind: null, labels: [],
+        created_at: new Date().toISOString(),
+      };
+    } else {
+      try {
+        const response = await api("/api/items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url,
+            person,
+            occasion,
+            price: price === "" ? null : price,
+          }),
+        });
+        if (!response.ok) {
+          const problem = await response.json().catch(() => ({}));
+          setError(typeof problem.detail === "string" ? problem.detail : "Couldn't save that link");
+          return false;
+        }
+        created = await response.json();
+      } catch {
+        setError(OFFLINE);
+        return false;
+      }
     }
-    const created = await response.json();
 
     setItems((prev) => [created, ...prev]);
-    setUrl("");
-    setOccasion("");
-    setPrice("");
     setError("");
+    return true;
   }
 
+  // Resolves true if the item is gone, false if the delete failed.
   async function removeItem(id) {
-    await api(`/api/items/${id}`, { method: "DELETE" });
+    if (fixturesMode) {
+      console.log("[fixtures] delete skipped");
+    } else {
+      try {
+        const response = await api(`/api/items/${id}`, { method: "DELETE" });
+        // 404 = already deleted elsewhere; the card should still go.
+        if (!response.ok && response.status !== 404) return false;
+      } catch {
+        return false;   // network error
+      }
+    }
     setItems((prev) => prev.filter((item) => item.id !== id));
+    return true;
   }
 
-  function startEdit(item, field) {
-    setEditing({ id: item.id, field });
-    setDraft(item[field] ?? "");
-  }
+  // Optimistic: show the new values now, put the old ones back if the save fails.
+  // Resolves true on success, false on failure.
+  async function updateItem(id, fields) {
+    const previous = items.find((i) => i.id === id);
+    const reverted = Object.fromEntries(Object.keys(fields).map((key) => [key, previous[key]]));
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...fields } : i)));
 
-  async function saveEdit() {
-    if (!editing) return;
-    const { id, field } = editing;
-    const item = items.find((i) => i.id === id);
-    setEditing(null);
-
-    // nothing changed (also how Escape becomes a no-op)
-    if (String(item[field] ?? "") === String(draft)) return;
-
-    const value =
-      field === "price" ? (draft === "" ? null : Number(draft)) : draft;
-
-    const response = await api(`/api/items/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [field]: value }),
-    });
-    if (!response.ok) {
-      setError("Couldn't save that");
-      return;
+    if (fixturesMode) {
+      console.log("[fixtures] edit skipped");
+      return true;
     }
-    const updated = await response.json();
-    setItems((prev) => prev.map((i) => (i.id === id ? updated : i)));
-  }
-
-  function isEditing(item, field) {
-    return editing && editing.id === item.id && editing.field === field;
-  }
-
-  function editable(item, field, display) {
-    if (!isEditing(item, field)) {
-      return (
-        <span className="editable" onClick={() => startEdit(item, field)}>
-          {display}
-        </span>
-      );
+    try {
+      const response = await api(`/api/items/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      if (!response.ok) throw new Error(`PATCH failed: ${response.status}`);
+      const updated = await response.json();
+      setItems((prev) => prev.map((i) => (i.id === id ? updated : i)));
+      return true;
+    } catch {
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...reverted } : i)));
+      return false;
     }
-    return (
-      <input
-        className="edit"
-        autoFocus
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={saveEdit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") e.target.blur();
-          if (e.key === "Escape") {
-            setDraft(item[field] ?? "");
-            e.target.blur();
-          }
-        }}
-      />
-    );
   }
 
   return (
-    <div className="page">
-      <h1>Gift Logger</h1>
-      <form onSubmit={addItem} className="form">
-        <input
-          className="input input-url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="Paste a Link"
-        />
-        <select
-          className="input"
-          value={person}
-          onChange={(e) => setPerson(e.target.value)}
-        >
-          <option value="">Person</option>
-          <option>Mom</option>
-          <option>Dad</option>
-          <option>Gf</option>
-          <option>Big Sis</option>
-          <option>Friend</option>
-          <option>Teacher</option>
-        </select>
-        <input
-          type="text"
-          className="input input-occasion"
-          list="occasion-list"
-          placeholder="Occasion..."
-          value={occasion}
-          onChange={(e) => setOccasion(e.target.value)}
-        />
-        <datalist id="occasion-list">
-          <option value="Birthday" />
-          <option value="Anniversary" />
-          <option value="Graduation" />
-          <option value="Wedding" />
-          <option value="Eid" />
-          <option value="Valentine's" />
-          <option value="Mother's Day" />
-          <option value="Father's Day" />
-          <option value="Just Because" />
-        </datalist>
-        <input
-          type="number"
-          className="input input-price"
-          placeholder="Price"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-        />
-        <button className="button">Save</button>
-      </form>
-      {error && <p className="error">{error}</p>}
-      <div className="filters">
-        <button
-          className={filter === "" ? "chip chip-on" : "chip"}
-          onClick={() => setFilter("")}
-        >
-          All
-        </button>
-        {people.map((name) => (
-          <button
-            key={name}
-            className={filter === name ? "chip chip-on" : "chip"}
-            onClick={() => setFilter(name)}
-          >
-            {name}
-          </button>
-        ))}
-      </div>
-      <ul className="list">
-        {shown.map((item) => {
-          const enriched = item.status === "Done";
-          return (
-            <li key={item.id} className={enriched ? "item" : "item item-partial"}>
-              <div className="box box-title">
-                {item.img_url ? (
-                  <a href={item.url} target="_blank"><img src={item.img_url} alt="" className="thumb" /></a>
-                ) : (
-                  <div className="thumb thumb-empty" />
-                )}
-                <div className="title-text">
-                  <div className="title">
-                    {editable(item, "title", item.title || item.url)}{" "}
-                    <a href={item.url} title="open link" target="_blank">
-                      &#8599;
-                    </a>
-                  </div>
-                  {enriched && item.description && (
-                    <div className="desc">{item.description}</div>
-                  )}
-                  {item.status === "Pending" && (
-                    <div className="pending">Pending!</div>
-                  )}
-                  {item.status === "Partial" && (
-                    <div className="partial">Partial</div>
-                  )}
-                  {item.status === "Failed" && (
-                    <div className="failed">Failed</div>
-                  )}
-                </div>
-                <button className="x" onClick={() => removeItem(item.id)}>
-                  X
-                </button>
-              </div>
-              {enriched && (
-                <div className="box box-kind">
-                  <div className="kind">
-                    {isEditing(item, "kind") ? (
-                      <select
-                        className="edit"
-                        autoFocus
-                        value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
-                        onBlur={saveEdit}
-                      >
-                        {KINDS.map((k) => (
-                          <option key={k}>{k}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span
-                        className="editable"
-                        onClick={() => startEdit(item, "kind")}
-                      >
-                        {item.kind || "?"}
-                      </span>
-                    )}
-                  </div>
-                  {item.labels?.length > 0 && (
-                    <ul className="labels">
-                      {item.labels.map((label) => (
-                        <li key={label}>{label}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-
-              
-              <div className="box box-sq box-person">{item.person || "?"}</div>
-              <div className="box box-sq box-occasion">
-                {item.occasion || "?"}
-              </div>
-              <div className="box box-sq box-price">
-                {editable(item, "price", item.price ?? "\u2014")}
-                {enriched && item.price != null && item.currency
-                  ? ` ${item.currency}`
-                  : ""}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+    <Page>
+      <BackgroundIllustration />
+      <Header>
+        <Title>GiftQL</Title>
+        <InputBar onAdd={addItem} />
+        {error && <ErrorLine role="alert">{error}</ErrorLine>}
+      </Header>
+      <FilterBar
+        person={personFilter}
+        onPersonChange={setPersonFilter}
+        occasion={occasionFilter}
+        onOccasionChange={setOccasionFilter}
+        occasionOptions={occasions}
+        price={priceFilter}
+        onPriceChange={setPriceFilter}
+      />
+      <Grid
+        items={shown}
+        totalCount={items.length}
+        person={personFilter}
+        otherFiltersActive={Boolean(occasionFilter || priceFilter)}
+        onDelete={removeItem}
+        onUpdate={updateItem}
+      />
+    </Page>
   );
 }
 
 export default App;
+
+// No background here — only <html> has one (spec §7.2).
+const Page = styled.main`
+  max-width: var(--grid-max-page-width);
+  margin: 0 auto;
+  padding: var(--space-page-block) var(--space-page-gutter);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-section-gap);
+`;
+
+const Header = styled.header`
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-section-gap);
+`;
+
+const shimmer = keyframes`
+  from { background-position: 0% 50%; }
+  to   { background-position: 200% 50%; }
+`;
+
+// Brand-blue gradient clipped to the letters, slowly sweeping across.
+// Filters: a solid light-blue offset copy gives it depth, then a page-colored
+// halo around both keeps it crisp over the pattern.
+const Title = styled.h1`
+  align-self: flex-start;
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--size-page-title);
+  font-weight: var(--weight-medium);
+  line-height: var(--line-height-title);
+  letter-spacing: var(--tracking-title);
+
+  background: linear-gradient(
+    90deg,
+    var(--color-card-bg) 0%,
+    var(--color-border) 25%,
+    var(--color-surface-raised) 50%,
+    var(--color-border) 75%,
+    var(--color-card-bg) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter:
+    drop-shadow(var(--space-title-depth) var(--space-title-depth) 0 var(--color-text-muted))
+    drop-shadow(0 0 var(--space-halo) var(--color-page-bg));
+  animation: ${shimmer} var(--motion-title-shimmer) linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`;
+
+// Page-colored backing keeps the red readable over the pattern.
+const ErrorLine = styled.p`
+  align-self: flex-start;
+  margin: 0;
+  padding: 0 var(--space-halo);
+  border-radius: var(--radius-input);
+  background: var(--color-page-bg);
+  box-shadow: 0 0 0 var(--space-halo) var(--color-page-bg);
+  font-size: var(--size-error);
+  color: var(--color-danger-on-light);
+`;
