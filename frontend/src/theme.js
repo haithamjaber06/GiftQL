@@ -187,7 +187,7 @@ export const theme = {
   },
 
   pattern: {
-    opacity: 0.1,   // background pattern strength; 0 = off, 1 = full color
+    opacity: 0.35,   // background pattern strength; 0 = off, 1 = full color
     stroke:  2,      // line thickness of the gift doodles
     tile:    300,    // px size of one repeating tile
   },
