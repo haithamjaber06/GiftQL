@@ -225,24 +225,24 @@ const Title = styled.h1`
   margin: 0;
   font-family: var(--font-body);
   font-size: var(--size-page-title);
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
   line-height: var(--line-height-title);
   letter-spacing: var(--tracking-title);
 
   background: linear-gradient(
     90deg,
-    var(--color-card-bg) 0%,
-    var(--color-border) 25%,
-    var(--color-surface-raised) 50%,
-    var(--color-border) 75%,
-    var(--color-card-bg) 100%
+    var(--color-title-from) 0%,
+    var(--color-title-mid) 25%,
+    var(--color-title-to) 50%,
+    var(--color-title-mid) 75%,
+    var(--color-title-from) 100%
   );
   background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   filter:
-    drop-shadow(var(--space-title-depth) var(--space-title-depth) 0 var(--color-text-muted))
+    drop-shadow(var(--space-title-depth) var(--space-title-depth) 0 var(--color-title-depth))
     drop-shadow(0 0 var(--space-halo) var(--color-page-bg));
   animation: ${shimmer} var(--motion-title-shimmer) linear infinite;
 

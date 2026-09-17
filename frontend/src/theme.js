@@ -2,50 +2,62 @@ export const theme = {
   color: {
     // Page — owner changes this often. Keep it first and named clearly.
     // If you change it, re-check inputBorder and focusRingOnLight against it (§8.1).
-    pageBg:        '#FFFFFF',
+    pageBg:        '#F8FAFC',   // light slate
 
-    // Brand blue ramp — derived from the card color, do not substitute other blues
-    cardBg:        '#021F93',   // card surface
-    surfaceRaised: '#1A3AB8',   // image fallback background, label chips
-    border:        '#3D5AC9',   // hairline dividers and outlines inside the card
-    textMuted:     '#93A7EE',   // field labels, price on front, secondary icons
-    textBody:      '#B9C6F4',   // description text on the back
-    textStrong:    '#FFFFFF',   // titles, field values
+    // Accent — filled buttons (Save, Visit), active pill, focus rings
+    accent:        '#2563EB',   // royal blue
 
-    // Tag on the card front (light pill on dark card)
-    tagBg:         '#EDF0FD',
-    tagText:       '#021F93',
+    // Cards: white surface, slate text
+    cardBg:        '#FFFFFF',
+    surfaceRaised: '#F1F5F9',   // image fallback, label chips, skeleton base
+    border:        '#E2E8F0',   // card outline, hairline dividers, icon button outlines
+    textMuted:     '#64748B',   // field labels, prices, icons, hostnames
+    textBody:      '#1E293B',   // description, chip text
+    textStrong:    '#1E293B',   // titles, field values
 
-    // Visit button (light button on dark card)
-    visitBg:       '#FFFFFF',
-    visitText:     '#021F93',
+    // Tags floating over the card image (see-through + blur)
+    tagBg:         'rgba(255, 255, 255, 0.8)',
+    tagText:       '#1E293B',
+
+    // Visit button
+    visitBg:       '#2563EB',
+    visitText:     '#FFFFFF',
 
     // Controls on the light page background
     inputBg:          '#FFFFFF',
-    inputBorder:      '#8482B3',   // 3:1 minimum against both inputBg and pageBg
-    inputText:        '#1A1A2E',
-    inputPlaceholder: '#6B6996',
+    inputBorder:      '#CBD5E1',   // soft — chosen by owner; below the 3:1 guideline (1.5:1)
+    inputText:        '#1E293B',
+    inputPlaceholder: '#64748B',
 
     // Dialog
     dialogBg:       '#FFFFFF',
-    dialogText:     '#1A1A2E',
-    dialogBackdrop: 'rgba(2, 31, 147, 0.4)',
+    dialogText:     '#1E293B',
+    dialogBackdrop: 'rgba(15, 23, 42, 0.4)',
 
-    // Destructive — two variants, because one red cannot pass contrast on both surfaces
-    dangerOnDark:  '#FF8A8A',   // Delete text and error messages on the card
+    // Destructive. Cards are light now, so both variants use the same red.
+    dangerOnDark:  '#C4292F',   // Delete text and error messages on the card
     dangerOnLight: '#C4292F',   // Delete button and error messages in the dialog
 
-    // Text on filled buttons (dialog Delete, Save, active pill)
+    // Text on filled buttons (dialog Delete, Save, Visit, active pill)
     textOnFilled:  '#FFFFFF',
 
-    // Keyboard focus rings
-    focusRingOnLight: '#021F93',   // on page, bars, dialog
-    focusRingOnDark:  '#FFFFFF',   // inside cards
+    // Keyboard focus rings (cards are light now, so both are the accent)
+    focusRingOnLight: '#2563EB',
+    focusRingOnDark:  '#2563EB',
+
+    // Page title: gradient stops and 3D shadow
+    titleFrom:     '#1E3A8A',
+    titleMid:      '#2563EB',
+    titleTo:       '#3B82F6',
+    titleDepth:    '#BFDBFE',
+
+    // Background doodles
+    patternStroke: '#64748B',
   },
 
   font: {
-    display: "'Playfair Display', Georgia, 'Times New Roman', serif",
-    body:    "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    display: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",   // card titles
+    body:    "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   },
 
   size: {
@@ -70,6 +82,7 @@ export const theme = {
   weight: {
     regular: 400,
     medium:  500,
+    semibold: 600,   // card titles, page title
   },
 
   lineHeight: {
@@ -79,7 +92,7 @@ export const theme = {
   },
 
   radius: {
-    card:   '12px',
+    card:   '16px',
     image:  '8px',
     pill:   '999px',
     button: '8px',
@@ -120,8 +133,8 @@ export const theme = {
     titleDepth:   '4px',    // offset of the page title's 3D shadow    // page-colored ring around controls so they stay readable over the pattern    // room so focus rings aren't clipped in scroll containers
     pageBlock:    '32px',   // space above and below the page content
     sectionGap:   '16px',   // between title, input bar, filter bar, grid
-    fieldPaddingX: '12px',  // input bar and filter bar controls
-    fieldPaddingY: '8px',
+    fieldPaddingX: '14px',  // input bar and filter bar controls
+    fieldPaddingY: '10px',
     pillPaddingX: '14px',
     pillPaddingY: '6px',
     filterBarPaddingY: '12px',
@@ -135,8 +148,8 @@ export const theme = {
   },
 
   shadow: {
-    card:   '0 1px 3px rgba(2,31,147,0.08), 0 4px 12px rgba(2,31,147,0.06)',
-    dialog: '0 8px 32px rgba(2,31,147,0.24)',
+    card:   '0 4px 12px rgba(0, 0, 0, 0.05)',
+    dialog: '0 8px 32px rgba(15, 23, 42, 0.16)',
   },
 
   motion: {
@@ -169,8 +182,12 @@ export const theme = {
     maxWidth: '400px',
   },
 
+  effect: {
+    tagBlur: '4px',   // backdrop blur behind tags on card images
+  },
+
   pattern: {
-    opacity: 0.15,   // background pattern strength; 0 = off, 1 = full color
+    opacity: 0.1,   // background pattern strength; 0 = off, 1 = full color
     stroke:  2,      // line thickness of the gift doodles
     tile:    300,    // px size of one repeating tile
   },

@@ -7,6 +7,7 @@ export const Face = styled.article`
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   background: var(--color-card-bg);
+  border: var(--border-hairline) solid var(--color-border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   color: var(--color-text-strong);
@@ -66,7 +67,7 @@ export const CardTitle = styled.h2`
   margin: 0;
   font-family: var(--font-display);
   font-size: var(--size-card-title);
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
   line-height: var(--line-height-title);
   color: var(--color-text-strong);
 

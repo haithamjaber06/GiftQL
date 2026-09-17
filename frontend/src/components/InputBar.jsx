@@ -103,9 +103,9 @@ const PriceInput = styled.input`
 // The only filled control in the bar.
 const SaveButton = styled.button`
   padding: var(--space-field-padding-y) var(--space-field-padding-x);
-  border: var(--border-hairline) solid var(--color-card-bg);
+  border: var(--border-hairline) solid var(--color-accent);
   border-radius: var(--radius-button);
-  background: var(--color-card-bg);
+  background: var(--color-accent);
   color: var(--color-text-on-filled);
   font-size: var(--size-input);
   font-weight: var(--weight-medium);

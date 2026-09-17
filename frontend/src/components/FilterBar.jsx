@@ -128,8 +128,8 @@ const Pill = styled.button`
   ${pillLook}
 
   &[aria-pressed='true'] {
-    border-color: var(--color-card-bg);
-    background: var(--color-card-bg);
+    border-color: var(--color-accent);
+    background: var(--color-accent);
     color: var(--color-text-on-filled);
   }
 

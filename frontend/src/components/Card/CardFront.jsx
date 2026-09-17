@@ -59,6 +59,8 @@ const Tag = styled.span`
   padding: var(--space-tag-padding-y) var(--space-tag-padding-x);
   border-radius: var(--radius-pill);
   background: var(--color-tag-bg);
+  -webkit-backdrop-filter: blur(var(--effect-tag-blur));
+  backdrop-filter: blur(var(--effect-tag-blur));
   color: var(--color-tag-text);
   font-size: var(--size-tag);
   font-weight: var(--weight-medium);

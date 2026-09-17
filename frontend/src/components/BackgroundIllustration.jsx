@@ -121,7 +121,7 @@ const Layer = styled.div`
 
   .gifts {
     fill: none;
-    stroke: var(--color-card-bg);
+    stroke: var(--color-pattern-stroke);
     stroke-width: var(--pattern-stroke);
     stroke-linecap: round;
     stroke-linejoin: round;
