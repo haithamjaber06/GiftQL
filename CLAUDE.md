@@ -23,4 +23,3 @@ has to be short.
 
 - He types every line. Don't hand him finished files.
 - One step per sitting. Each step ends with something visible working.
-- `BUILD.md` is the road. Steps 0–6 = basics, 7–12 = the real system.

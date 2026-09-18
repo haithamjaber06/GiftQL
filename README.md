@@ -1,90 +1,101 @@
-# Gift Logger
+# Gift Logger — project description
+
+## The problem
 
 I see gift ideas everywhere — reels, shops, screenshots — and they vanish into a camera roll I
-never open. This saves them, and lets me find them again when someone's birthday comes around.
+never open. By the time someone's birthday comes around, none of it is findable.
 
-**A learning project.** The point is to understand how a system is built, not to finish fast.
+Gift Logger captures a gift idea in one paste and makes it retrievable later by **who it's for**,
+**what the occasion is**, and **what it costs**.
 
----
+**Live at <https://giftql-ob91.onrender.com/>** (hosted on Render).
 
-## 👉 Start here: [`BUILD.md`](BUILD.md)
+## What it does today
 
-Steps 0–6 are the basics, 7–12 are the real system. You write every line. Each step ends with
-something working on screen.
+Paste a URL, pick a person, optionally an occasion and a price. The item appears immediately as a
+card marked `Pending`. In the background the server fetches the page, strips it to text, and asks
+an LLM to turn it into structured data — real product name, one-line description, kind, price,
+currency, vibe labels. The card fills itself in. You can edit any field on the card; every edit is
+recorded so the model's mistakes are measurable. Filter the grid by person, occasion, or price.
 
-To follow it from the start you need Python and a text editor. Nothing else.
+## Why it's built this way
 
----
+It is a **learning project**. The goal is understanding how a system is put together, not shipping
+fast. Every piece was added only after the problem it solves was felt firsthand — duplicates were
+fixed after saving the same link twice, the background worker after the 2-second save pause got
+annoying. `BUILD.md` is that road, step by step; `docs/` holds the design decisions made along the
+way, meant to be read *after* hitting the problem they describe.
 
-## What's in this folder
+Designed for N users, deployed for one. ~10 items a day, a few thousand over a year — small enough
+that no queue, no vector database, and no caching layer are justified yet.
 
-| | |
-|---|---|
-| **[`BUILD.md`](BUILD.md)** | **The only file you need right now.** Step-by-step build guide |
-| `backend/` | The API — FastAPI, split into `config` / `db` / `schemas` / `scraper` / `routes` |
-| `backend/giftlogger.db` | Your data. SQLite makes this for you on first run. Not in git |
-| `frontend/` | The page you actually use — React + Vite |
-| `docs/` | Design notes. **Reference material, not homework** — see below |
+## The shape of the system
 
-`BUILD.md` builds everything as a single `app.py`, which is the right way to learn it. The split
-above came later, once one file stopped being comfortable to read.
-
-## Running it
-
-Two terminals. Backend first:
-
-```powershell
-cd backend
-..\.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+```
+paste ──> POST /api/items ──> row saved as Pending ──> response (instant)
+                                    │
+                                    └─ background: fetch_meta() ─> parse_item() ─> UPDATE row
+                                         scrape OG tags + text      LLM, JSON-enforced
 ```
 
-Then the frontend:
+Five boxes, same as any system: **ingest** (the form), **process** (scrape + LLM), **store**
+(Postgres), **retrieve** (filtered `SELECT`), **present** (the card grid).
 
-```powershell
-cd frontend
-npm install
-npm run dev
+The genuinely hard part isn't CRUD — it's *semantic enrichment from a hostile data source*. Product
+pages give up Open Graph tags cheaply; Instagram gives you a URL and nothing else.
+
+## Stack
+
+| Layer | Choice | Why |
+|---|---|---|
+| API | FastAPI | Python, async, types, free API docs at `/docs` |
+| Database | Postgres via `psycopg` + connection pool | Started as SQLite; moved when real data mattered |
+| Scraping | `httpx` + BeautifulSoup | Open Graph tags are published on purpose — legitimate to read |
+| LLM | Gemini Flash-Lite via `instructor` | Free tier; `instructor` + Pydantic forces valid JSON back |
+| Frontend | React + Vite + styled-components | One page, no router, no state library |
+| Auth | Single shared API key header | One user. Real auth would be complexity with no payoff |
+
+## Layout
+
+```
+backend/app/
+  main.py      app setup, CORS, lifespan (opens the pool, fails loudly if the DB is down)
+  config.py    env vars, one line to swap LLM provider
+  auth.py      X-API-Key check
+  db.py        pooled connection, commit/rollback context manager
+  scraper.py   normalize() strips tracking junk; fetch_meta() returns title, image, text
+  llm.py       parse_item() — the prompt and the model call
+  schemas.py   Pydantic models; ItemParse doubles as the LLM's output contract
+  routes/items.py   list / create / patch / delete, plus enrich() background task
+frontend/src/
+  App.jsx      state, fetching, polling while anything is Pending
+  components/  InputBar, FilterBar, Grid, Card
+  constants/   people, occasions, kinds, status — mirrored from the backend
 ```
 
-The page is at <http://localhost:5173>, the API at <http://127.0.0.1:8000>, and the auto-generated
-API docs at <http://127.0.0.1:8000/docs>.
+## Notable design decisions
 
-⚠️ Run uvicorn **from inside `backend/`**. The imports are absolute (`from app.config import ...`),
-so they only resolve when `backend/` is the working directory.
+- **Duplicates.** URLs are normalized (tracking params stripped, `www.` dropped, trailing slash
+  removed) and unique per person — the same link can be saved for Mom and for Dad.
+- **Never lose the link.** If scraping or the LLM fails, the row is still saved, marked `Partial`
+  or `Failed`, and stays editable by hand.
+- **Corrections table.** Every manual edit stores the old LLM value next to the new one. Free
+  training data, and an honest measure of where the prompt is weak.
+- **Parameterised SQL everywhere.** No f-strings in queries — the one rule with no exceptions.
+- **Status drives the UI.** `Pending / Done / Partial / Failed` is one string the frontend renders
+  four ways; polling stops after two minutes.
 
-## About the `docs/` folder
+## Known gaps
 
-Those are decisions we already made together, written down so you don't have to re-decide them
-later. **You do not need to read them to build this.**
+- Enrichment runs in FastAPI `BackgroundTasks`. Restart the server mid-enrich and the item is stuck
+  on `Pending` forever — needs a retry-on-startup pass.
+- No migrations wired up (`alembic` is installed but unused); schema changes are still manual.
 
-Use them like a dictionary, not a textbook:
+## What's next
 
-- Stuck on a word? → [`docs/02-glossary.md`](docs/02-glossary.md)
-- "Why did we choose X?" → [`docs/03-why-these-technologies.md`](docs/03-why-these-technologies.md)
-- "What was the plan again?" → [`docs/05-spec-v1.md`](docs/05-spec-v1.md)
+**Step 12 — Telegram bot.** A long-polling script that takes a link sent from the phone and POSTs
+it to the existing `/api/items`. No new routes, no new tables — a second ingest mouth on the same
+pipeline.
 
-They'll make far more sense *after* you've hit the problems they describe. That's the intended
-order — build first, read when you get stuck.
-
----
-
-## What the finished thing does
-
-Send a link, a photo, or a typed thought to a bot. It works out what the thing is, what it costs,
-and roughly what it's about. You say who it's for. Later you ask *"gift ideas for my Gf for our
-anniversary"* and get a filtered list back.
-
-That's the destination. `BUILD.md` is the road.
-
-## Where it's going after the basics
-
-Rough order, one at a time, each its own sitting:
-
-- ✅ 7. Make it look decent
-- ✅ 8. Stop it saving duplicates
-- ✅ 9. Move the slow web-fetching into the background
-- ✅ 10. Add price and occasion
-- 11. Let an LLM fill in the fields automatically
-- 12. A Telegram bot so you can send links from your phone
+Further out, from the original spec: semantic search ("cozy minimalist desk stuff"), image ingest,
+and a `idea → shortlisted → bought → gifted` lifecycle so bought things stop resurfacing.
