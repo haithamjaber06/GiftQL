@@ -1,11 +1,11 @@
-# Gift Logger — project description
+# GiftQL — project description
 
 ## The problem
 
 I see gift ideas everywhere — reels, shops, screenshots — and they vanish into a camera roll I
 never open. By the time someone's birthday comes around, none of it is findable.
 
-Gift Logger captures a gift idea in one paste and makes it retrievable later by **who it's for**,
+GiftQL captures a gift idea in one paste and makes it retrievable later by **who it's for**,
 **what the occasion is**, and **what it costs**.
 
 **Live at <https://giftql-ob91.onrender.com/>** (hosted on Render).
