@@ -72,6 +72,13 @@ frontend/src/
   constants/   people, occasions, kinds, status — mirrored from the backend
 ```
 
+## Schema changes
+
+Managed with Alembic (`backend/migrations/`). Migrations are hand-written SQL — there are no
+SQLAlchemy models, so no autogenerate. From `backend/`: `alembic revision -m "..."`, fill in
+`upgrade()`/`downgrade()`, then `alembic upgrade head`. Render runs `alembic upgrade head` on
+every start.
+
 ## Notable design decisions
 
 - **Duplicates.** URLs are normalized (tracking params stripped, `www.` dropped, trailing slash
@@ -88,7 +95,6 @@ frontend/src/
 
 - Enrichment runs in FastAPI `BackgroundTasks`. Restart the server mid-enrich and the item is stuck
   on `Pending` forever.
-- No migrations; schema changes are still manual.
 - The price you enter is saved without its currency, and the corrections table logs edits that
   aren't real LLM corrections.
 - The API key ships in the frontend's JavaScript, so anyone can read it.
@@ -96,23 +102,21 @@ frontend/src/
 
 ## What's next
 
-1. **Alembic** — reinstall it and write a baseline migration of the current tables by hand, so
-   every later schema change is a versioned script.
-2. **Data fixes** — in a migration, store the currency with the price you enter, and make the
+1. **Data fixes** — in a migration, store the currency with the price you enter, and make the
    corrections table log only real LLM corrections.
-3. **Retry on startup** — when the server boots, re-queue any item stuck on `Pending`.
-4. **Accounts** — real login through a provider, replacing the exposed API key.
-5. **Ownership** — add `user_id` to `items` and filter every query by it, so users only ever see
+2. **Retry on startup** — when the server boots, re-queue any item stuck on `Pending`.
+3. **Accounts** — real login through a provider, replacing the exposed API key.
+4. **Ownership** — add `user_id` to `items` and filter every query by it, so users only ever see
    their own data.
-6. **Recipients and occasions** — move the hardcoded lists into per-user tables editable in the app.
-7. **Editable fields** — let the card edit person, description, and labels, which `ItemUpdate`
+5. **Recipients and occasions** — move the hardcoded lists into per-user tables editable in the app.
+6. **Editable fields** — let the card edit person, description, and labels, which `ItemUpdate`
    can't change yet.
-8. **Embeddings** — add pgvector and store an embedding (a list of numbers representing the item's
+7. **Embeddings** — add pgvector and store an embedding (a list of numbers representing the item's
    meaning) for each item at save time.
-9. **Chatbot** — answer questions like "graduation, $50" by filtering and searching your items,
+8. **Chatbot** — answer questions like "graduation, $50" by filtering and searching your items,
    then letting the LLM recommend only from those.
-10. **Telegram bot** — link a Telegram account to your user once with a one-time code, then send
-    links from your phone.
+9. **Telegram bot** — link a Telegram account to your user once with a one-time code, then send
+   links from your phone.
 
 Further out, from the original spec: image ingest, and an `idea → shortlisted → bought → gifted`
 lifecycle so bought things stop resurfacing.
