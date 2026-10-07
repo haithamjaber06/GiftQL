@@ -5,6 +5,7 @@ import { Face, CardTitle, Visit, IconButton, OutlinedIconButton, DeleteButton } 
 import { formatPrice } from '../../utils/formatPrice';
 import { isBlank } from '../../utils/isBlank';
 import { KINDS } from '../../constants/kinds';
+import { CURRENCIES, DEFAULT_CURRENCY } from '../../constants/currencies';
 import { OCCASION_LIST_ID } from '../../constants/occasions';
 import { belowTablet } from '../../utils/media';
 
@@ -17,6 +18,7 @@ function toDraft(item) {
     kind: item.kind ?? '',
     occasion: item.occasion ?? '',
     price: item.price == null ? '' : String(item.price),
+    currency: item.currency ?? DEFAULT_CURRENCY,
   };
 }
 
@@ -28,11 +30,16 @@ function changedFields(item, draft) {
   const title = draft.title.trim();
   const occasion = draft.occasion.trim();
   const price = parsePrice(draft.price);
+  const currency = price === null ? null : draft.currency;
 
   if (title !== (item.title ?? '')) fields.title = title;
   if (draft.kind !== (item.kind ?? '')) fields.kind = draft.kind === '' ? null : draft.kind;
   if (occasion !== (item.occasion ?? '')) fields.occasion = occasion;
-  if (price !== (item.price ?? null)) fields.price = price;
+  // Sent as a pair: the API rejects one without the other.
+  if (price !== (item.price ?? null) || currency !== (item.currency ?? null)) {
+    fields.price = price;
+    fields.currency = currency;
+  }
   return fields;
 }
 
@@ -54,6 +61,11 @@ export default function CardBack({ item, inert, onClose, closeRef, onRequestDele
     focusNext.current = null;
     target?.current?.focus();
   }, [editing]);
+
+  // An LLM-found code outside the list must still be selectable.
+  const currencyOptions = item.currency && !CURRENCIES.includes(item.currency)
+    ? [...CURRENCIES, item.currency]
+    : CURRENCIES;
 
   const labels = item.labels ?? [];
   const visibleLabels = labels.slice(0, MAX_VISIBLE_LABELS);
@@ -190,19 +202,31 @@ export default function CardBack({ item, inert, onClose, closeRef, onRequestDele
         </dt>
         <dd>
           {editing ? (
-            <Input
-              id={`${formId}-price`}
-              form={formId}
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="any"
-              value={draft.price}
-              onChange={(event) => {
-                setPriceBadInput(event.target.validity.badInput);
-                update('price')(event);
-              }}
-            />
+            <PriceRow>
+              <Input
+                id={`${formId}-price`}
+                form={formId}
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="any"
+                value={draft.price}
+                onChange={(event) => {
+                  setPriceBadInput(event.target.validity.badInput);
+                  update('price')(event);
+                }}
+              />
+              <CurrencySelect
+                aria-label="Currency"
+                form={formId}
+                value={draft.currency}
+                onChange={update('currency')}
+              >
+                {currencyOptions.map((code) => (
+                  <option key={code}>{code}</option>
+                ))}
+              </CurrencySelect>
+            </PriceRow>
           ) : (
             formatPrice(item.price, item.currency)
           )}
@@ -338,6 +362,16 @@ const Input = styled.input`
 
 const Select = styled.select`
   ${fieldControl}
+`;
+
+const PriceRow = styled.div`
+  display: flex;
+  gap: var(--space-action-gap);
+`;
+
+const CurrencySelect = styled(Select)`
+  width: auto;
+  flex: 0 0 auto;
 `;
 
 const Chips = styled.ul`

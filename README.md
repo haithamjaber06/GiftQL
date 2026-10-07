@@ -95,15 +95,13 @@ every start.
 
 - Enrichment runs in FastAPI `BackgroundTasks`. Restart the server mid-enrich and the item is stuck
   on `Pending` forever.
-- The price you enter is saved without its currency, and the corrections table logs edits that
-  aren't real LLM corrections.
+- The corrections table logs edits that aren't real LLM corrections.
 - The API key ships in the frontend's JavaScript, so anyone can read it.
 - People and occasions are hardcoded lists; person, description, and labels can't be edited.
 
 ## What's next
 
-1. **Data fixes** — in a migration, store the currency with the price you enter, and make the
-   corrections table log only real LLM corrections.
+1. **Data fixes** — make the corrections table log only real LLM corrections.
 2. **Retry on startup** — when the server boots, re-queue any item stuck on `Pending`.
 3. **Accounts** — real login through a provider, replacing the exposed API key.
 4. **Ownership** — add `user_id` to `items` and filter every query by it, so users only ever see

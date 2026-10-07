@@ -2,21 +2,23 @@ import { useState } from 'react';
 import styled from 'styled-components';
 import { PEOPLE } from '../constants/people';
 import { OCCASIONS, OCCASION_LIST_ID } from '../constants/occasions';
+import { CURRENCIES, DEFAULT_CURRENCY } from '../constants/currencies';
 import { belowPhone, belowTablet } from '../utils/media';
 import { fieldStyles } from './fieldStyles';
 
-// onAdd({ url, person, occasion, price }) resolves true when the item was saved.
+// onAdd({ url, person, occasion, price, currency }) resolves true when the item was saved.
 export default function InputBar({ onAdd }) {
   const [url, setUrl] = useState('');
   const [person, setPerson] = useState('');
   const [occasion, setOccasion] = useState('');
   const [price, setPrice] = useState('');
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
 
   async function submit(event) {
     event.preventDefault();
-    const saved = await onAdd({ url, person, occasion, price });
+    const saved = await onAdd({ url, person, occasion, price, currency });
     if (saved) {
-      // Person is kept: saving several links for one person is common.
+      // Person and currency are kept: saving several links for one person is common.
       setUrl('');
       setOccasion('');
       setPrice('');
@@ -62,6 +64,11 @@ export default function InputBar({ onAdd }) {
         value={price}
         onChange={(e) => setPrice(e.target.value)}
       />
+      <Select aria-label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+        {CURRENCIES.map((code) => (
+          <option key={code}>{code}</option>
+        ))}
+      </Select>
       <SaveButton type="submit">Save</SaveButton>
     </Form>
   );

@@ -37,12 +37,15 @@ def enrich(url, item_id):
                 )
             return
 
+        # Price and currency are one pair: the user's wins if they gave one, else
+        # the LLM's. Both CASEs read the row's price from before this UPDATE.
         with db() as conn:
             conn.execute(
                 """UPDATE items
                    SET title = %s, raw_title = %s, img_url = %s, status = 'Done',
-                       kind = %s, description = %s, labels = %s, currency = %s,
-                       price = COALESCE(price, %s)
+                       kind = %s, description = %s, labels = %s,
+                       price    = CASE WHEN price IS NULL THEN %s ELSE price END,
+                       currency = CASE WHEN price IS NULL THEN %s ELSE currency END
                    WHERE id = %s""",
                 (parsed.title or title,
                  title,
@@ -50,8 +53,8 @@ def enrich(url, item_id):
                  parsed.kind,
                  parsed.description,
                  Json(parsed.labels),
-                 parsed.currency,
                  parsed.price,
+                 parsed.currency,
                  item_id),
             )
     except Exception:
@@ -71,10 +74,10 @@ def create_item(new: NewItem, back_ground: BackgroundTasks):
     try:
         with db() as conn:
             row = conn.execute(
-                """INSERT INTO items (url, person, norm_url, status, occasion, price)
-                   VALUES (%s, %s, %s, %s, %s, %s)
+                """INSERT INTO items (url, person, norm_url, status, occasion, price, currency)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)
                    RETURNING *""",
-                (new.url, new.person, norm, "Pending", new.occasion, new.price),
+                (new.url, new.person, norm, "Pending", new.occasion, new.price, new.currency),
             ).fetchone()
     except psycopg.errors.UniqueViolation:
         raise HTTPException(status_code=409, detail="Already Saved For This Person")

@@ -77,7 +77,7 @@ function App() {
   }, []);
 
   // Resolves true when the item was saved (the input bar then clears itself).
-  async function addItem({ url, person, occasion, price }) {
+  async function addItem({ url, person, occasion, price, currency }) {
     if (!url.trim()) {
       setError("Please enter a URL");
       return false;
@@ -87,7 +87,8 @@ function App() {
       console.log("[fixtures] create skipped");
       created = {
         id: Date.now(), url, norm_url: url, person, occasion,
-        price: price === "" ? null : Number(price), currency: null,
+        price: price === "" ? null : Number(price),
+        currency: price === "" ? null : currency,
         title: null, raw_title: null, description: null, img_url: null,
         status: STATUS.PENDING, kind: null, labels: [],
         created_at: new Date().toISOString(),
@@ -102,6 +103,7 @@ function App() {
             person,
             occasion,
             price: price === "" ? null : price,
+            currency: price === "" ? null : currency,
           }),
         });
         if (!response.ok) {
