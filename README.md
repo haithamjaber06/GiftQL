@@ -15,8 +15,8 @@ GiftQL captures a gift idea in one paste and makes it retrievable later by **who
 Paste a URL, pick a person, optionally an occasion and a price. The item appears immediately as a
 card marked `Pending`. In the background the server fetches the page, strips it to text, and asks
 an LLM to turn it into structured data — real product name, one-line description, kind, price,
-currency, vibe labels. The card fills itself in. You can edit any field on the card; every edit is
-recorded so the model's mistakes are measurable. Filter the grid by person, occasion, or price.
+currency, vibe labels. The card fills itself in. You can edit any field on the card; edits that
+disagree with the LLM are recorded so the model's mistakes are measurable. Filter the grid by person, occasion, or price.
 
 ## Why it's built this way
 
@@ -58,7 +58,8 @@ pages give up Open Graph tags cheaply; Instagram gives you a URL and nothing els
 
 ```
 backend/app/
-  main.py      app setup, CORS, lifespan (opens the pool, fails loudly if the DB is down)
+  main.py      app setup, CORS, lifespan (opens the pool, fails loudly if the DB is down,
+               re-queues stuck Pending items)
   config.py    env vars, one line to swap LLM provider
   auth.py      X-API-Key check
   db.py        pooled connection, commit/rollback context manager
@@ -85,24 +86,27 @@ every start.
   removed) and unique per person — the same link can be saved for Mom and for Dad.
 - **Never lose the link.** If scraping or the LLM fails, the row is still saved, marked `Partial`
   or `Failed`, and stays editable by hand.
-- **Corrections table.** Every manual edit stores the old LLM value next to the new one. Free
-  training data, and an honest measure of where the prompt is weak.
+- **Corrections table.** The LLM's answer is snapshotted once (`items.llm_output`); edits are
+  compared against it, not the current value. One row per wrong field, deleted if you revert.
+  Free training data, and an honest measure of where the prompt is weak.
+- **Your edits win.** Editing a card while it's `Pending` survives `enrich()` finishing.
 - **Parameterised SQL everywhere.** No f-strings in queries — the one rule with no exceptions.
 - **Status drives the UI.** `Pending / Done / Partial / Failed` is one string the frontend renders
   four ways; polling stops after two minutes.
+- **Retry on startup.** At boot, a background thread re-runs `enrich()` on items stuck on
+  `Pending` for over 2 minutes. Younger ones are skipped, since another server may still own them.
 
 ## Known gaps
 
-- Enrichment runs in FastAPI `BackgroundTasks`. Restart the server mid-enrich and the item is stuck
-  on `Pending` forever.
-- The corrections table logs edits that aren't real LLM corrections.
+- An item saved under 2 minutes before a restart stays `Pending` until the next boot.
+- Items saved before the corrections fix have no LLM snapshot, so their edits aren't logged.
 - The API key ships in the frontend's JavaScript, so anyone can read it.
 - People and occasions are hardcoded lists; person, description, and labels can't be edited.
 
 ## What's next
 
-1. **Data fixes** — make the corrections table log only real LLM corrections.
-2. **Retry on startup** — when the server boots, re-queue any item stuck on `Pending`.
+1. ~~**Data fixes**~~ — done: corrections table logs only real LLM corrections.
+2. ~~**Retry on startup**~~ — done: stuck `Pending` items are re-queued at boot.
 3. **Evals** — a fixed set of hand-labelled items; score the parser field by field so prompt
    changes are measured, not guessed.
 4. **Embeddings** — add pgvector and store an embedding (a list of numbers representing the
