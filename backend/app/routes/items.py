@@ -32,20 +32,23 @@ def enrich(url, item_id):
             status = "Failed" if img_url is None and title is None else "Partial"
             with db() as conn:
                 conn.execute(
-                    "UPDATE items SET title = %s, raw_title = %s, img_url = %s, status = %s WHERE id = %s",
+                    """UPDATE items
+                       SET title = COALESCE(title, %s), raw_title = %s, img_url = %s, status = %s
+                       WHERE id = %s""",
                     (title, title, img_url, status, item_id),
                 )
             return
 
-        # Price and currency are one pair: the user's wins if they gave one, else
-        # the LLM's. Both CASEs read the row's price from before this UPDATE.
+        # Anything the user already set while Pending wins: COALESCE keeps title and
+        # kind, and price/currency stay one pair. Both CASEs read the pre-UPDATE price.
         with db() as conn:
             conn.execute(
                 """UPDATE items
-                   SET title = %s, raw_title = %s, img_url = %s, status = 'Done',
-                       kind = %s, description = %s, labels = %s,
+                   SET title = COALESCE(title, %s), raw_title = %s, img_url = %s, status = 'Done',
+                       kind = COALESCE(kind, %s), description = %s, labels = %s,
                        price    = CASE WHEN price IS NULL THEN %s ELSE price END,
-                       currency = CASE WHEN price IS NULL THEN %s ELSE currency END
+                       currency = CASE WHEN price IS NULL THEN %s ELSE currency END,
+                       llm_output = %s
                    WHERE id = %s""",
                 (parsed.title or title,
                  title,
@@ -55,6 +58,7 @@ def enrich(url, item_id):
                  Json(parsed.labels),
                  parsed.price,
                  parsed.currency,
+                 Json(parsed.model_dump()),
                  item_id),
             )
     except Exception:
@@ -86,6 +90,34 @@ def create_item(new: NewItem, back_ground: BackgroundTasks):
     return row_to_item(row)
 
 
+# Fields the LLM fills in. occasion is always the user's, so edits to it aren't corrections.
+LLM_FIELDS = {"title", "kind", "price", "currency"}
+
+
+def same(llm_value, user_value):
+    """Equal as values: prices as rounded numbers, so 12.5 matches 12.50."""
+    if isinstance(llm_value, (int, float)) and isinstance(user_value, (int, float)):
+        return round(llm_value, 2) == round(user_value, 2)
+    return llm_value == user_value
+
+
+def log_correction(conn, item_id, field, llm_value, user_value):
+    """One row per field: where the user disagrees with the LLM, or none if they agree."""
+    if same(llm_value, user_value):
+        conn.execute(
+            "DELETE FROM corrections WHERE item_id = %s AND field = %s", (item_id, field)
+        )
+        return
+
+    conn.execute(
+        """INSERT INTO corrections (item_id, field, llm_value, user_value)
+           VALUES (%s, %s, %s, %s)
+           ON CONFLICT (item_id, field)
+           DO UPDATE SET user_value = EXCLUDED.user_value, corrected_at = now()""",
+        (item_id, field, Json(llm_value), Json(user_value)),
+    )
+
+
 @router.patch("/items/{item_id}")
 def update_item(item_id: int, patch: ItemUpdate):
     fields = patch.model_dump(exclude_unset=True)
@@ -104,12 +136,11 @@ def update_item(item_id: int, patch: ItemUpdate):
             f"UPDATE items SET {sets} WHERE id = %s RETURNING *", values
         ).fetchone()
 
-        for field, new_value in fields.items():
-            conn.execute(
-                """INSERT INTO corrections (item_id, field, llm_value, user_value)
-                   VALUES (%s, %s, %s, %s)""",
-                (item_id, field, str(old[field]), str(new_value)),
-            )
+        llm = old["llm_output"]
+        if llm is not None:
+            for field, new_value in fields.items():
+                if field in LLM_FIELDS:
+                    log_correction(conn, item_id, field, llm.get(field), new_value)
 
     return row_to_item(row)
 

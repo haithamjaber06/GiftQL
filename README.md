@@ -26,7 +26,7 @@ fixed after saving the same link twice, the background worker after the 2-second
 annoying. `BUILD.md` is that road, step by step; `docs/` holds the design decisions made along the
 way, meant to be read *after* hitting the problem they describe.
 
-Designed for N users, deployed for one. ~10 items a day, a few thousand over a year — small enough
+Scoped as a single-user portfolio project. Designed for N users, deployed for one. ~10 items a day, a few thousand over a year — small enough
 that no queue, no vector database, and no caching layer are justified yet.
 
 ## The shape of the system
@@ -103,18 +103,32 @@ every start.
 
 1. **Data fixes** — make the corrections table log only real LLM corrections.
 2. **Retry on startup** — when the server boots, re-queue any item stuck on `Pending`.
-3. **Accounts** — real login through a provider, replacing the exposed API key.
-4. **Ownership** — add `user_id` to `items` and filter every query by it, so users only ever see
-   their own data.
-5. **Recipients and occasions** — move the hardcoded lists into per-user tables editable in the app.
-6. **Editable fields** — let the card edit person, description, and labels, which `ItemUpdate`
-   can't change yet.
-7. **Embeddings** — add pgvector and store an embedding (a list of numbers representing the item's
-   meaning) for each item at save time.
-8. **Chatbot** — answer questions like "graduation, $50" by filtering and searching your items,
-   then letting the LLM recommend only from those.
-9. **Telegram bot** — link a Telegram account to your user once with a one-time code, then send
-   links from your phone.
+3. **Evals** — a fixed set of hand-labelled items; score the parser field by field so prompt
+   changes are measured, not guessed.
+4. **Embeddings** — add pgvector and store an embedding (a list of numbers representing the
+   item's meaning) for each item at save time.
+5. **Chatbot** — on the main page. Answers questions like "graduation, $50" by filtering and
+   searching your items, then letting the LLM recommend only from those.
+6. **Ship** — a short demo video plus the eval numbers below.
 
-Further out, from the original spec: image ingest, and an `idea → shortlisted → bought → gifted`
-lifecycle so bought things stop resurfacing.
+*Optional:* image ingest (screenshots instead of links).
+
+## Results
+
+*Eval numbers go here once step 3 is done.*
+
+## Designed, not built
+
+Cut to keep scope tight. Designed enough to build later:
+
+- **Pages** — React Router: Recent, Calendar, People, Occasions, Settings.
+- **Accounts** — real login through a provider, replacing the exposed API key.
+- **Ownership** — `user_id` on every row, every query filtered by it.
+- **People** — per-user `people` table (name, birthday) replacing the hardcoded list.
+- **Occasions** — `occasions` table (Gregorian or Hijri dates) + `occasion_people` join table.
+- **Calendar** — upcoming dates, "in N days", with idea counts.
+- **Editable fields** — person, occasion, description, labels editable on the card.
+- **Settings** — default currency, change password, delete account.
+- **Reminders** — daily cron endpoint, `reminders_sent` table, email via Resend.
+- **Telegram bot** — link once with a one-time code, send links from your phone.
+- **Lifecycle** — `idea → shortlisted → bought → gifted`, so bought things stop resurfacing.
