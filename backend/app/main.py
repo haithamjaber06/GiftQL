@@ -1,3 +1,4 @@
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends
@@ -12,6 +13,8 @@ from app.routes import items
 async def lifespan(app: FastAPI):
     pool.open()
     pool.wait()      # fail loudly at startup if the database is unreachable
+    # Re-queue items a restart left on Pending, without delaying startup
+    threading.Thread(target=items.retry_pending, daemon=True).start()
     yield            # ---- app runs here ----
     pool.close()
 

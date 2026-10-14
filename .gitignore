@@ -11,3 +11,4 @@ media/
 .vscode/
 node_modules/
 Features/
+.claude/

@@ -72,6 +72,23 @@ def enrich(url, item_id):
             traceback.print_exc()
 
 
+def retry_pending():
+    """Re-run enrich for items a restart left stuck on Pending.
+    Skips items under 2 minutes old: another live server may still be enriching them.
+    """
+    try:
+        with db() as conn:
+            rows = conn.execute(
+                """SELECT id, url FROM items
+                   WHERE status = 'Pending' AND created_at < now() - interval '2 minutes'"""
+            ).fetchall()
+        print(f"Retrying {len(rows)} pending item(s)")
+        for row in rows:
+            enrich(row["url"], row["id"])
+    except Exception:
+        traceback.print_exc()
+
+
 @router.post("/items")
 def create_item(new: NewItem, back_ground: BackgroundTasks):
     norm = normalize(new.url)
