@@ -26,7 +26,7 @@ def parse_item(url, title, page_text):
 Page title: {title or "(none found)"}
 
 Page text:
-{page_text[:6000]}
+{page_text[:20000]}
 """
     
     try:

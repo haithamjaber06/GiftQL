@@ -88,8 +88,12 @@ class ItemParse(BaseModel):
     """What the LLM is allowed to tell us about the saved link."""
     
     kind: KIND = Field(
-        description="One of: Product, Store, Idea, Inspo. A single buyable thing is a 'product'. " 
-                    "A shop you'd return to is 'store'"
+        description="One of: Product, Store, Idea, Inspo. "
+                    "Product: a single buyable thing. "
+                    "Store: a shop's own site or page, somewhere you'd return to buy from. "
+                    "Idea: an article suggesting what gifts to buy. "
+                    "Inspo: browsing or roundup content for general inspiration, "
+                    "including articles listing shops."
     )
     
     title: str = Field(
