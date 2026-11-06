@@ -67,6 +67,9 @@ backend/app/
   llm.py       parse_item() — the prompt and the model call
   schemas.py   Pydantic models; ItemParse doubles as the LLM's output contract
   routes/items.py   list / create / patch / delete, plus enrich() background task
+backend/evals/
+  snapshot.py  saves each page in urls.txt to cases.json, ready to label
+  run.py       scores parse_item() against the labels in cases.json
 frontend/src/
   App.jsx      state, fetching, polling while anything is Pending
   components/  InputBar, FilterBar, Grid, Card
@@ -89,6 +92,8 @@ every start.
 - **Corrections table.** The LLM's answer is snapshotted once (`items.llm_output`); edits are
   compared against it, not the current value. One row per wrong field, deleted if you revert.
   Free training data, and an honest measure of where the prompt is weak.
+- **Evals on saved pages.** Page text is saved once, so scores change because of the prompt, not
+  because a live page did. Evals stay out of `pytest` because they make real LLM calls.
 - **Your edits win.** Editing a card while it's `Pending` survives `enrich()` finishing.
 - **Parameterised SQL everywhere.** No f-strings in queries — the one rule with no exceptions.
 - **Status drives the UI.** `Pending / Done / Partial / Failed` is one string the frontend renders
@@ -98,6 +103,8 @@ every start.
 
 ## Known gaps
 
+- Block screens look like real pages. Nearly half the links tried for the eval set returned one, a
+  rate-limit message, or a dead page, and any non-empty text like that still reaches the LLM.
 - An item saved under 2 minutes before a restart stays `Pending` until the next boot.
 - Items saved before the corrections fix have no LLM snapshot, so their edits aren't logged.
 - The API key ships in the frontend's JavaScript, so anyone can read it.
@@ -107,8 +114,7 @@ every start.
 
 1. ~~**Data fixes**~~ — done: corrections table logs only real LLM corrections.
 2. ~~**Retry on startup**~~ — done: stuck `Pending` items are re-queued at boot.
-3. **Evals** — a fixed set of hand-labelled items; score the parser field by field so prompt
-   changes are measured, not guessed.
+3. ~~**Evals**~~ — done: 15 hand-labelled pages score the parser field by field.
 4. **Embeddings** — add pgvector and store an embedding (a list of numbers representing the
    item's meaning) for each item at save time.
 5. **Chatbot** — on the main page. Answers questions like "graduation, $50" by filtering and
@@ -119,7 +125,19 @@ every start.
 
 ## Results
 
-*Eval numbers go here once step 3 is done.*
+Correct answers out of 15 hand-labelled pages, from `python -m evals.run` in `backend/`:
+
+| Field | Baseline | After `kind` definitions | After raising the text limit |
+|---|---|---|---|
+| `kind` | 13–14 | 15 | 15 |
+| `price` | 13 | 13 | 15 |
+| `currency` | 13 | 13 | 15 |
+
+- **`kind`:** the description had the wrong casing and never defined `Idea` or `Inspo`.
+- **`price`, `currency`:** two prices sat past the 6,000-character cut, so the LLM never saw them.
+
+This is a small set, and the fixes were tuned against it, so expect lower scores on new links. It
+only holds pages the scraper could read, and no product in it has a missing price.
 
 ## Designed, not built
 
